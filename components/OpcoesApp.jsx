@@ -604,6 +604,20 @@ function TabPosicoes(){
   const [posicoes,setPosicoes]=useState([]);
   const [form,setForm]=useState({ativo:"",tipo:"call",strike:"",premio:"",qtd:"100",dataVenc:getNextExpiry(),precoEntrada:""});
   const [showForm,setShowForm]=useState(false);
+  const [loaded,setLoaded]=useState(false);
+
+  useEffect(()=>{
+    try{
+      const saved=JSON.parse(localStorage.getItem("op_posicoes")||"[]");
+      setPosicoes(saved);
+    }catch{}
+    setLoaded(true);
+  },[]);
+
+  useEffect(()=>{
+    if(!loaded) return;
+    localStorage.setItem("op_posicoes",JSON.stringify(posicoes));
+  },[posicoes,loaded]);
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
@@ -682,14 +696,18 @@ function TabPosicoes(){
                     <div style={{fontSize:16,fontWeight:700,color:C.text}}>{p.ativo}</div>
                     <Badge color={p.tipo==="call"?C.accent:"#A78BFA"}>{p.tipo==="call"?"Call":"Put"}</Badge>
                   </div>
-                  <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+                  <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10}}>
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:9,color:C.muted,fontWeight:600}}>STRIKE</div>
                       <div style={{fontSize:14,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {p.strike.toFixed(2)}</div>
                     </div>
                     <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>PRÊMIO TOTAL</div>
-                      <div style={{fontSize:14,fontWeight:600,color:C.green,fontFamily:"var(--font-mono)"}}>R$ {premioTotal.toFixed(2)}</div>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>QTD. OPÇÕES</div>
+                      <div style={{fontSize:14,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>{p.qtd}</div>
+                    </div>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>PRÊMIO/OPÇÃO</div>
+                      <div style={{fontSize:14,fontWeight:600,color:C.green,fontFamily:"var(--font-mono)"}}>R$ {p.premio.toFixed(2)}</div>
                     </div>
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:9,color:C.muted,fontWeight:600}}>NOCIONAL</div>
@@ -890,6 +908,21 @@ function TabPerformance(){
   const [ops,setOps]=useState([]);
   const [form,setForm]=useState({mes:"",resultado:"",meta:"2000",selic:"0.1400"});
   const [showForm,setShowForm]=useState(false);
+  const [loaded,setLoaded]=useState(false);
+
+  useEffect(()=>{
+    try{
+      const saved=JSON.parse(localStorage.getItem("op_performance")||"[]");
+      setOps(saved);
+    }catch{}
+    setLoaded(true);
+  },[]);
+
+  useEffect(()=>{
+    if(!loaded) return;
+    localStorage.setItem("op_performance",JSON.stringify(ops));
+  },[ops,loaded]);
+
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const meses=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
