@@ -64,17 +64,9 @@ function diasAte(data){
 // ════════════════════════════════════════════════════════════════════
 // API
 // ════════════════════════════════════════════════════════════════════
-async function fetchQuote(ticker){
-  const r=await fetch(`https://brapi.dev/api/quote/${ticker}?token=anonymous`);
-  const d=await r.json();
-  return d?.results?.[0]?.regularMarketPrice||null;
-}
-
-async function fetchHistPrices(ticker){
-  const r=await fetch(`https://brapi.dev/api/quote/${ticker}?range=3mo&interval=1d&token=anonymous`);
-  const d=await r.json();
-  const hist=d?.results?.[0]?.historicalDataPrice||[];
-  return hist.map(h=>h.close).filter(Boolean);
+async function fetchAtivo(ticker){
+  const r=await fetch(`/api/brapi/${ticker}`);
+  return r.json();
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -182,9 +174,9 @@ function AtivoFetcher({ativo,onAtivo,preco,onPreco,histVol,onHistVol,taxa,onTaxa
     if(!tick||tick.length<4) return;
     setStatus("loading");
     try{
-      const [q,hist]=await Promise.all([fetchQuote(tick),fetchHistPrices(tick)]);
-      if(q){onPreco(String(q));setStatus("ok");}else{setStatus("error");}
-      if(hist&&hist.length>10){const hv=calcHistVol(hist);if(hv)onHistVol(hv.toFixed(1));}
+      const {price,prices}=await fetchAtivo(tick);
+      if(price){onPreco(String(price));setStatus("ok");}else{setStatus("error");}
+      if(prices&&prices.length>10){const hv=calcHistVol(prices);if(hv)onHistVol(hv.toFixed(1));}
     }catch{setStatus("error");}
   },[]);
 
