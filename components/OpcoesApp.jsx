@@ -97,71 +97,123 @@ function decide({iv,ivHist,delta,premioPercent,dias,taxa}){
   else{signals.push({t:"bad",text:`Prêmio ${premioPercent.toFixed(2)}% não bate Selic do período (${sp.toFixed(2)}%)`});score-=1;}
 
   const v=score>=4?"LANÇAR":score>=2?"LANÇAR COM CAUTELA":score>=0?"AGUARDAR":"NÃO LANÇAR";
-  const col=score>=4?"#3FB950":score>=2?"#D29922":score>=0?"#F0883E":"#F85149";
+  const col=score>=4?"#34D399":score>=2?"#FBBF24":score>=0?"#FB923C":"#F87171";
   return{verdict:v,color:col,score,signals,sp};
 }
 
 // ════════════════════════════════════════════════════════════════════
-// COLORS & BASE COMPONENTS
+// DESIGN TOKENS
 // ════════════════════════════════════════════════════════════════════
-const C={bg:"#0D1117",card:"#161B22",border:"#30363D",accent:"#58A6FF",
-  green:"#3FB950",yellow:"#D29922",orange:"#F0883E",red:"#F85149",
-  text:"#E6EDF3",muted:"#8B949E",input:"#21262D"};
+const C={
+  bg:"#0B0E14",
+  bgGradient:"radial-gradient(ellipse 1200px 620px at 50% -12%, #161B2C 0%, #0B0E14 55%)",
+  card:"#12161F",
+  border:"#262C39",
+  borderSoft:"#1D2230",
+  accent:"#5B8DEF",
+  accent2:"#7C6CF0",
+  green:"#34D399",
+  yellow:"#FBBF24",
+  orange:"#FB923C",
+  red:"#F87171",
+  text:"#EDEFF3",
+  muted:"#8A94A6",
+  input:"#171B24",
+};
 
 const iS=(extra={})=>({width:"100%",background:C.input,border:`1px solid ${C.border}`,
-  borderRadius:6,padding:"8px 10px",color:C.text,fontSize:13,outline:"none",
-  boxSizing:"border-box",fontFamily:"'JetBrains Mono',monospace",...extra});
+  borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,outline:"none",
+  boxSizing:"border-box",fontFamily:"var(--font-mono)",...extra});
 
+// ════════════════════════════════════════════════════════════════════
+// ICONS
+// ════════════════════════════════════════════════════════════════════
+function Icon({name,size=18,style={}}){
+  const p={width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",
+    strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round",style:{flexShrink:0,...style}};
+  switch(name){
+    case"zap":return<svg{...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+    case"bars":return<svg{...p}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>;
+    case"clipboard":return<svg{...p}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>;
+    case"refresh":return<svg{...p}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>;
+    case"trending":return<svg{...p}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>;
+    case"check":return<svg{...p}><polyline points="20 6 9 17 4 12"/></svg>;
+    case"alert":return<svg{...p}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+    case"x":return<svg{...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+    case"logout":return<svg{...p}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
+    default:return null;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// BASE COMPONENTS
+// ════════════════════════════════════════════════════════════════════
 function Fld({label,children,hint}){
   return(
     <div style={{marginBottom:10}}>
-      <div style={{fontSize:10,color:C.muted,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.5px"}}>{label}</div>
+      <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.6px",fontWeight:600}}>{label}</div>
       {children}
-      {hint&&<div style={{fontSize:10,color:C.muted,marginTop:2}}>{hint}</div>}
+      {hint&&<div style={{fontSize:10.5,color:C.muted,marginTop:4}}>{hint}</div>}
     </div>
   );
 }
 
 function Card({children,style={}}){
-  return <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:16,...style}}>{children}</div>;
+  return <div className="op-card" style={{background:C.card,border:`1px solid ${C.borderSoft}`,
+    borderRadius:14,padding:18,boxShadow:"0 1px 2px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.18)",...style}}>{children}</div>;
 }
 
 function SectionTitle({children}){
-  return <div style={{fontSize:11,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:12}}>{children}</div>;
+  return <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:12}}>{children}</div>;
 }
 
 function Metric({label,value,sub,hi}){
   return(
-    <div style={{background:C.card,border:`1px solid ${hi?hi+"44":C.border}`,borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
-      <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:3}}>{label}</div>
-      <div style={{fontSize:18,fontWeight:700,color:hi||C.text,fontFamily:"'JetBrains Mono',monospace"}}>{value}</div>
-      {sub&&<div style={{fontSize:10,color:C.muted,marginTop:1}}>{sub}</div>}
+    <div style={{background:C.card,border:`1px solid ${hi?hi+"3D":C.borderSoft}`,borderRadius:11,padding:"12px 13px",textAlign:"center"}}>
+      <div style={{fontSize:9.5,color:C.muted,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:4,fontWeight:600}}>{label}</div>
+      <div style={{fontSize:18.5,fontWeight:700,color:hi||C.text,fontFamily:"var(--font-mono)",letterSpacing:"-0.3px"}}>{value}</div>
+      {sub&&<div style={{fontSize:10,color:C.muted,marginTop:2}}>{sub}</div>}
     </div>
   );
 }
 
 function Sig({t,text}){
   const col=t==="ok"?C.green:t==="warn"?C.yellow:C.red;
-  const ic=t==="ok"?"✓":t==="warn"?"⚠":"✗";
+  const icon=t==="ok"?"check":t==="warn"?"alert":"x";
   return(
-    <div style={{display:"flex",gap:8,padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-      <span style={{color:col,fontSize:13,flexShrink:0,marginTop:1}}>{ic}</span>
-      <span style={{fontSize:12,color:C.text,lineHeight:1.4}}>{text}</span>
+    <div style={{display:"flex",gap:10,padding:"9px 0",borderBottom:`1px solid ${C.borderSoft}`,alignItems:"flex-start"}}>
+      <span style={{color:col,marginTop:1}}><Icon name={icon} size={14}/></span>
+      <span style={{fontSize:12.5,color:C.text,lineHeight:1.5}}>{text}</span>
     </div>
   );
 }
 
 function Btn({onClick,children,variant="primary",style={}}){
-  const base={border:"none",borderRadius:7,fontSize:13,fontWeight:600,cursor:"pointer",padding:"9px 16px",...style};
-  const v={primary:{background:C.accent,color:"#fff"},
+  const base={border:"none",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",padding:"9.5px 16px",...style};
+  const v={
+    primary:{background:"linear-gradient(135deg, #5B8DEF 0%, #4C7FE0 100%)",color:"#fff",boxShadow:"0 2px 10px rgba(91,141,239,0.3)"},
     secondary:{background:C.input,color:C.text,border:`1px solid ${C.border}`},
-    success:{background:C.green+"22",color:C.green,border:`1px solid ${C.green}44`},
-    danger:{background:C.red+"22",color:C.red,border:`1px solid ${C.red}44`}};
-  return <button onClick={onClick} style={{...base,...v[variant]}}>{children}</button>;
+    success:{background:C.green+"1A",color:C.green,border:`1px solid ${C.green}40`},
+    danger:{background:C.red+"1A",color:C.red,border:`1px solid ${C.red}40`}
+  };
+  return <button className="op-btn" onClick={onClick} style={{...base,...v[variant]}}>{children}</button>;
 }
 
 function Badge({color,children}){
-  return <span style={{background:color+"22",color,border:`1px solid ${color}44`,borderRadius:20,fontSize:10,padding:"2px 8px",fontWeight:600}}>{children}</span>;
+  return <span style={{background:color+"1F",color,border:`1px solid ${color}44`,borderRadius:20,fontSize:10,padding:"3px 9px",fontWeight:700,letterSpacing:"0.2px"}}>{children}</span>;
+}
+
+function EmptyState({icon,title,desc}){
+  return(
+    <Card style={{padding:"56px 40px",textAlign:"center"}}>
+      <div style={{width:52,height:52,borderRadius:14,background:C.input,border:`1px solid ${C.border}`,
+        display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",color:C.accent}}>
+        <Icon name={icon} size={24}/>
+      </div>
+      <div style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:6}}>{title}</div>
+      <div style={{fontSize:12.5,color:C.muted,maxWidth:380,margin:"0 auto",lineHeight:1.5}}>{desc}</div>
+    </Card>
+  );
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -190,11 +242,11 @@ function AtivoFetcher({ativo,onAtivo,preco,onPreco,histVol,onHistVol,taxa,onTaxa
     <div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         <Fld label="Ativo">
-          <input value={ativo} onChange={e=>{onAtivo(e.target.value.toUpperCase());setStatus("idle");}}
+          <input className="op-input" value={ativo} onChange={e=>{onAtivo(e.target.value.toUpperCase());setStatus("idle");}}
             placeholder="PETR4" style={iS()}/>
         </Fld>
         <Fld label="Tipo">
-          <select value={tipo} onChange={e=>onTipo(e.target.value)} style={iS()}>
+          <select className="op-select" value={tipo} onChange={e=>onTipo(e.target.value)} style={iS()}>
             <option value="call">Call</option>
             <option value="put">Put</option>
           </select>
@@ -204,25 +256,28 @@ function AtivoFetcher({ativo,onAtivo,preco,onPreco,histVol,onHistVol,taxa,onTaxa
         <div style={{display:"flex",gap:6}}>
           <div style={{position:"relative",flex:1}}>
             <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>R$</span>
-            <input type="number" value={preco} onChange={e=>onPreco(e.target.value)}
+            <input className="op-input" type="number" value={preco} onChange={e=>onPreco(e.target.value)}
               placeholder="automático" style={iS({paddingLeft:26})}/>
           </div>
-          <Btn onClick={()=>buscar(ativo)} variant="secondary" style={{padding:"0 12px",minWidth:60}}>
-            {status==="loading"?"...":status==="ok"?"✓":status==="error"?"✗":"↻"}
+          <Btn onClick={()=>buscar(ativo)} variant="secondary" style={{padding:"0 12px",minWidth:44,display:"flex",alignItems:"center",justifyContent:"center"}}>
+            {status==="loading"?<Icon name="refresh" size={15} style={{color:C.muted,animation:"spin 0.9s linear infinite"}}/>
+              :status==="ok"?<Icon name="check" size={15} style={{color:C.green}}/>
+              :status==="error"?<Icon name="x" size={15} style={{color:C.red}}/>
+              :<Icon name="refresh" size={15} style={{color:C.muted}}/>}
           </Btn>
         </div>
       </Fld>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
         <Fld label="Vol. histórica (auto)" hint="Calculada dos últimos 3 meses via Brapi">
           <div style={{position:"relative"}}>
-            <input type="number" value={histVol} onChange={e=>onHistVol(e.target.value)}
-              placeholder="calculando..." style={iS({paddingRight:22,background:C.green+"11",border:`1px solid ${C.green}33`})}/>
+            <input className="op-input" type="number" value={histVol} onChange={e=>onHistVol(e.target.value)}
+              placeholder="calculando..." style={iS({paddingRight:22,background:C.green+"0D",border:`1px solid ${C.green}33`})}/>
             <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>%</span>
           </div>
         </Fld>
         <Fld label="Selic anual" hint="14% = 0.1400">
-          <input type="number" value={taxa} onChange={e=>onTaxa(e.target.value)}
-            placeholder="0.1400" style={iS({border:`1px solid ${C.accent}44`,background:C.accent+"11"})}/>
+          <input className="op-input" type="number" value={taxa} onChange={e=>onTaxa(e.target.value)}
+            placeholder="0.1400" style={iS({border:`1px solid ${C.accent}44`,background:C.accent+"0D"})}/>
         </Fld>
       </div>
       {extra}
@@ -282,21 +337,21 @@ function TabAnalisar(){
               <Fld label="Strike">
                 <div style={{position:"relative"}}>
                   <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>R$</span>
-                  <input type="number" value={strike} onChange={e=>setStrike(e.target.value)} placeholder="45.05" style={iS({paddingLeft:26})}/>
+                  <input className="op-input" type="number" value={strike} onChange={e=>setStrike(e.target.value)} placeholder="45.05" style={iS({paddingLeft:26})}/>
                 </div>
               </Fld>
               <Fld label="Prêmio atual — bid no Profit">
                 <div style={{position:"relative"}}>
                   <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>R$</span>
-                  <input type="number" value={premio} onChange={e=>setPremio(e.target.value)} placeholder="1.44" style={iS({paddingLeft:26})}/>
+                  <input className="op-input" type="number" value={premio} onChange={e=>setPremio(e.target.value)} placeholder="1.44" style={iS({paddingLeft:26})}/>
                 </div>
               </Fld>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 <Fld label="Vencimento" hint={dias>0?`${dias} dias`:""}>
-                  <input type="date" value={dataVenc} onChange={e=>setDataVenc(e.target.value)} style={iS()}/>
+                  <input className="op-input" type="date" value={dataVenc} onChange={e=>setDataVenc(e.target.value)} style={iS()}/>
                 </Fld>
                 <Fld label="Quantidade">
-                  <input type="number" value={qtd} onChange={e=>setQtd(e.target.value)} placeholder="100" style={iS()}/>
+                  <input className="op-input" type="number" value={qtd} onChange={e=>setQtd(e.target.value)} placeholder="100" style={iS()}/>
                 </Fld>
               </div>
             </div>
@@ -313,32 +368,30 @@ function TabAnalisar(){
 
       <div>
         {!result?(
-          <Card style={{padding:60,textAlign:"center"}}>
-            <div style={{fontSize:36,marginBottom:12}}>📊</div>
-            <div style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:6}}>Preencha os dados ao lado</div>
-            <div style={{fontSize:12,color:C.muted}}>Vol. histórica calculada automaticamente · IV via Black-Scholes · Comparação vs Selic 14%</div>
-          </Card>
+          <EmptyState icon="zap" title="Preencha os dados ao lado"
+            desc="Vol. histórica calculada automaticamente · IV via Black-Scholes · Comparação vs Selic do período"/>
         ):(
           <>
             {/* Verdict */}
-            <div style={{background:vc+"11",border:`2px solid ${vc}44`,borderRadius:12,padding:"14px 18px",
-              marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{background:vc+"12",border:`1px solid ${vc}44`,borderRadius:14,padding:"16px 20px",
+              marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between",
+              boxShadow:`0 8px 24px ${vc}14`}}>
               <div>
-                <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Decisão</div>
-                <div style={{fontSize:24,fontWeight:800,color:vc}}>{result.dec.verdict}</div>
+                <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.6px",fontWeight:600}}>Decisão</div>
+                <div style={{fontSize:25,fontWeight:800,color:vc,letterSpacing:"-0.3px"}}>{result.dec.verdict}</div>
               </div>
               <div style={{display:"flex",gap:12,alignItems:"center"}}>
-                <div style={{textAlign:"center",padding:"6px 14px",background:C.input,borderRadius:8,border:`1px solid ${C.border}`}}>
-                  <div style={{fontSize:9,color:C.muted}}>SELIC {result.dias}d</div>
-                  <div style={{fontSize:15,fontWeight:700,color:C.muted}}>{result.dec.sp.toFixed(2)}%</div>
+                <div style={{textAlign:"center",padding:"7px 14px",background:C.input,borderRadius:10,border:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:9,color:C.muted,fontWeight:600}}>SELIC {result.dias}d</div>
+                  <div style={{fontSize:15,fontWeight:700,color:C.muted,fontFamily:"var(--font-mono)"}}>{result.dec.sp.toFixed(2)}%</div>
                 </div>
-                <div style={{textAlign:"center",padding:"6px 14px",background:vc+"11",borderRadius:8,border:`1px solid ${vc}44`}}>
-                  <div style={{fontSize:9,color:C.muted}}>PRÊMIO</div>
-                  <div style={{fontSize:15,fontWeight:700,color:vc}}>{result.pp.toFixed(2)}%</div>
+                <div style={{textAlign:"center",padding:"7px 14px",background:vc+"14",borderRadius:10,border:`1px solid ${vc}44`}}>
+                  <div style={{fontSize:9,color:C.muted,fontWeight:600}}>PRÊMIO</div>
+                  <div style={{fontSize:15,fontWeight:700,color:vc,fontFamily:"var(--font-mono)"}}>{result.pp.toFixed(2)}%</div>
                 </div>
                 <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:9,color:C.muted}}>Score</div>
-                  <div style={{fontSize:26,fontWeight:800,color:vc}}>{result.dec.score>0?"+":""}{result.dec.score}</div>
+                  <div style={{fontSize:9,color:C.muted,fontWeight:600}}>Score</div>
+                  <div style={{fontSize:27,fontWeight:800,color:vc,fontFamily:"var(--font-mono)"}}>{result.dec.score>0?"+":""}{result.dec.score}</div>
                 </div>
               </div>
             </div>
@@ -375,9 +428,9 @@ function TabAnalisar(){
                 {[{l:"ALVO 75%",v:result.pv*0.25,c:C.green,s:"recompra aqui"},
                   {l:"ALVO 50%",v:result.pv*0.5,c:C.yellow,s:"recompra aqui"},
                   {l:"STOP 2×",v:result.pv*2,c:C.red,s:"encerra prejuízo"}].map(({l,v,c,s})=>(
-                  <div key={l} style={{background:C.input,borderRadius:8,padding:10,textAlign:"center"}}>
-                    <div style={{fontSize:9,color:C.muted,marginBottom:3}}>{l}</div>
-                    <div style={{fontSize:16,fontWeight:700,color:c}}>R$ {v.toFixed(2)}</div>
+                  <div key={l} style={{background:C.input,borderRadius:10,padding:12,textAlign:"center",border:`1px solid ${C.borderSoft}`}}>
+                    <div style={{fontSize:9,color:C.muted,marginBottom:3,fontWeight:600}}>{l}</div>
+                    <div style={{fontSize:16,fontWeight:700,color:c,fontFamily:"var(--font-mono)"}}>R$ {v.toFixed(2)}</div>
                     <div style={{fontSize:10,color:C.muted}}>{s}</div>
                   </div>
                 ))}
@@ -448,10 +501,10 @@ function TabComparar(){
             <div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 <Fld label="Vencimento" hint={dias>0?`${dias} dias`:""}>
-                  <input type="date" value={dataVenc} onChange={e=>setDataVenc(e.target.value)} style={iS()}/>
+                  <input className="op-input" type="date" value={dataVenc} onChange={e=>setDataVenc(e.target.value)} style={iS()}/>
                 </Fld>
                 <Fld label="Quantidade">
-                  <input type="number" value={qtd} onChange={e=>setQtd(e.target.value)} placeholder="100" style={iS()}/>
+                  <input className="op-input" type="number" value={qtd} onChange={e=>setQtd(e.target.value)} placeholder="100" style={iS()}/>
                 </Fld>
               </div>
               <SectionTitle>Strikes para comparar</SectionTitle>
@@ -459,13 +512,13 @@ function TabComparar(){
                 <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:6}}>
                   <div style={{position:"relative"}}>
                     <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:11}}>K</span>
-                    <input type="number" value={strikes[i]} placeholder={`Strike ${i+1}`}
+                    <input className="op-input" type="number" value={strikes[i]} placeholder={`Strike ${i+1}`}
                       onChange={e=>{const s=[...strikes];s[i]=e.target.value;setStrikes(s);}}
                       style={iS({paddingLeft:20,fontSize:12})}/>
                   </div>
                   <div style={{position:"relative"}}>
                     <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:11}}>R$</span>
-                    <input type="number" value={premios[i]} placeholder="Prêmio"
+                    <input className="op-input" type="number" value={premios[i]} placeholder="Prêmio"
                       onChange={e=>{const p=[...premios];p[i]=e.target.value;setPremios(p);}}
                       style={iS({paddingLeft:20,fontSize:12})}/>
                   </div>
@@ -478,11 +531,8 @@ function TabComparar(){
 
       <div>
         {results.length===0?(
-          <Card style={{padding:60,textAlign:"center"}}>
-            <div style={{fontSize:36,marginBottom:12}}>⚖️</div>
-            <div style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:6}}>Compare até 4 strikes</div>
-            <div style={{fontSize:12,color:C.muted}}>Preencha os strikes e prêmios ao lado — o sistema calcula tudo e mostra o melhor</div>
-          </Card>
+          <EmptyState icon="bars" title="Compare até 4 strikes"
+            desc="Preencha os strikes e prêmios ao lado — o sistema calcula tudo e mostra o melhor"/>
         ):(
           <Card style={{overflowX:"auto"}}>
             <SectionTitle>Comparativo de Strikes</SectionTitle>
@@ -490,9 +540,9 @@ function TabComparar(){
               <thead>
                 <tr>
                   {cols.map(c=>(
-                    <th key={c} style={{padding:"8px 10px",background:C.input,color:C.muted,
-                      textAlign:"center",fontSize:10,textTransform:"uppercase",letterSpacing:"0.5px",
-                      border:`1px solid ${C.border}`}}>{c}</th>
+                    <th key={c} style={{padding:"9px 10px",background:C.input,color:C.muted,
+                      textAlign:"center",fontSize:10,textTransform:"uppercase",letterSpacing:"0.5px",fontWeight:700,
+                      border:`1px solid ${C.borderSoft}`}}>{c}</th>
                   ))}
                 </tr>
               </thead>
@@ -502,34 +552,34 @@ function TabComparar(){
                   const deltaCol=adelta>=0.25&&adelta<=0.35?C.green:adelta>0.45?C.red:C.yellow;
                   const rnCol=r.rn>=r.sp*1.5?C.green:r.rn>=r.sp?C.yellow:C.red;
                   return(
-                    <tr key={i} style={{background:i%2===0?C.card:"#1a2030"}}>
-                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.border}`,fontWeight:700,color:C.text}}>R$ {r.K.toFixed(2)}</td>
-                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.border}`,color:C.text}}>R$ {r.pv.toFixed(2)}</td>
-                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.border}`,
+                    <tr key={i} style={{background:i%2===0?C.card:"#151a26"}}>
+                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:700,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {r.K.toFixed(2)}</td>
+                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {r.pv.toFixed(2)}</td>
+                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontFamily:"var(--font-mono)",
                         color:r.iv>parseFloat(histVol)+8?C.green:r.iv<parseFloat(histVol)?C.red:C.yellow,fontWeight:600}}>
                         {r.iv.toFixed(1)}%
                       </td>
-                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.border}`,color:deltaCol,fontWeight:600}}>
+                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:deltaCol,fontWeight:600,fontFamily:"var(--font-mono)"}}>
                         {(r.g.delta*100).toFixed(1)}
                       </td>
-                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.border}`,
+                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontFamily:"var(--font-mono)",
                         color:r.g.probOTM>=70?C.green:r.g.probOTM>=55?C.yellow:C.red,fontWeight:600}}>
                         {r.g.probOTM.toFixed(0)}%
                       </td>
-                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.border}`,color:C.green}}>
+                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.green,fontFamily:"var(--font-mono)"}}>
                         R$ {Math.abs(r.g.theta*r.q).toFixed(2)}
                       </td>
-                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.border}`,color:rnCol,fontWeight:700}}>
+                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:rnCol,fontWeight:700,fontFamily:"var(--font-mono)"}}>
                         {r.rn.toFixed(2)}%
                       </td>
-                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.border}`,
+                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontFamily:"var(--font-mono)",
                         color:r.rn>=r.sp*1.5?C.green:r.rn>=r.sp?C.yellow:C.red}}>
                         {(r.rn/r.sp).toFixed(1)}×
                       </td>
-                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.border}`,color:C.muted}}>
+                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted,fontFamily:"var(--font-mono)"}}>
                         R$ {r.peq.toFixed(2)}
                       </td>
-                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.border}`}}>
+                      <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`}}>
                         <Badge color={r.dec.color}>{r.dec.verdict}</Badge>
                       </td>
                     </tr>
@@ -583,7 +633,7 @@ function TabPosicoes(){
         <div>
           <div style={{fontSize:16,fontWeight:700,color:C.text}}>Posições Abertas</div>
           <div style={{fontSize:12,color:C.muted}}>
-            {posicoes.length} posição(ões) · Nocional total: <span style={{color:C.accent}}>R$ {totalNocional.toFixed(0)}</span> · Prêmio recebido: <span style={{color:C.green}}>R$ {totalPremio.toFixed(2)}</span>
+            {posicoes.length} posição(ões) · Nocional total: <span style={{color:C.accent,fontFamily:"var(--font-mono)"}}>R$ {totalNocional.toFixed(0)}</span> · Prêmio recebido: <span style={{color:C.green,fontFamily:"var(--font-mono)"}}>R$ {totalPremio.toFixed(2)}</span>
           </div>
         </div>
         <Btn onClick={()=>setShowForm(!showForm)} variant={showForm?"secondary":"primary"}>
@@ -596,18 +646,18 @@ function TabPosicoes(){
         <Card style={{marginBottom:16}}>
           <SectionTitle>Nova Posição</SectionTitle>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-            <Fld label="Ativo"><input value={form.ativo} onChange={e=>setF("ativo",e.target.value.toUpperCase())} placeholder="PETR4" style={iS()}/></Fld>
+            <Fld label="Ativo"><input className="op-input" value={form.ativo} onChange={e=>setF("ativo",e.target.value.toUpperCase())} placeholder="PETR4" style={iS()}/></Fld>
             <Fld label="Tipo">
-              <select value={form.tipo} onChange={e=>setF("tipo",e.target.value)} style={iS()}>
+              <select className="op-select" value={form.tipo} onChange={e=>setF("tipo",e.target.value)} style={iS()}>
                 <option value="call">Call Coberta</option>
                 <option value="put">Put Vendida</option>
               </select>
             </Fld>
-            <Fld label="Strike"><input type="number" value={form.strike} onChange={e=>setF("strike",e.target.value)} placeholder="45.05" style={iS()}/></Fld>
-            <Fld label="Prêmio recebido/ação"><input type="number" value={form.premio} onChange={e=>setF("premio",e.target.value)} placeholder="1.44" style={iS()}/></Fld>
-            <Fld label="Quantidade"><input type="number" value={form.qtd} onChange={e=>setF("qtd",e.target.value)} placeholder="100" style={iS()}/></Fld>
-            <Fld label="Vencimento"><input type="date" value={form.dataVenc} onChange={e=>setF("dataVenc",e.target.value)} style={iS()}/></Fld>
-            <Fld label="Preço de entrada do ativo"><input type="number" value={form.precoEntrada} onChange={e=>setF("precoEntrada",e.target.value)} placeholder="41.81" style={iS()}/></Fld>
+            <Fld label="Strike"><input className="op-input" type="number" value={form.strike} onChange={e=>setF("strike",e.target.value)} placeholder="45.05" style={iS()}/></Fld>
+            <Fld label="Prêmio recebido/ação"><input className="op-input" type="number" value={form.premio} onChange={e=>setF("premio",e.target.value)} placeholder="1.44" style={iS()}/></Fld>
+            <Fld label="Quantidade"><input className="op-input" type="number" value={form.qtd} onChange={e=>setF("qtd",e.target.value)} placeholder="100" style={iS()}/></Fld>
+            <Fld label="Vencimento"><input className="op-input" type="date" value={form.dataVenc} onChange={e=>setF("dataVenc",e.target.value)} style={iS()}/></Fld>
+            <Fld label="Preço de entrada do ativo"><input className="op-input" type="number" value={form.precoEntrada} onChange={e=>setF("precoEntrada",e.target.value)} placeholder="41.81" style={iS()}/></Fld>
             <Fld label=""><div style={{paddingTop:18}}><Btn onClick={adicionar} style={{width:"100%"}}>Adicionar</Btn></div></Fld>
           </div>
         </Card>
@@ -615,11 +665,8 @@ function TabPosicoes(){
 
       {/* Lista */}
       {posicoes.length===0?(
-        <Card style={{padding:60,textAlign:"center"}}>
-          <div style={{fontSize:36,marginBottom:12}}>📋</div>
-          <div style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:6}}>Nenhuma posição aberta</div>
-          <div style={{fontSize:12,color:C.muted}}>Clique em "+ Adicionar Posição" para registrar seus lançamentos</div>
-        </Card>
+        <EmptyState icon="clipboard" title="Nenhuma posição aberta"
+          desc='Clique em "+ Adicionar Posição" para registrar seus lançamentos'/>
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:10}}>
           {posicoes.map(p=>{
@@ -629,7 +676,7 @@ function TabPosicoes(){
             const premioTotal=p.premio*p.qtd;
             const retorno=(premioTotal/noc)*100;
             return(
-              <Card key={p.id} style={{border:`1px solid ${alerta?C.red+"44":C.border}`}}>
+              <Card key={p.id} style={{border:`1px solid ${alerta?C.red+"44":C.borderSoft}`}}>
                 <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
                   <div style={{minWidth:80}}>
                     <div style={{fontSize:16,fontWeight:700,color:C.text}}>{p.ativo}</div>
@@ -637,25 +684,26 @@ function TabPosicoes(){
                   </div>
                   <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
                     <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted}}>STRIKE</div>
-                      <div style={{fontSize:14,fontWeight:600,color:C.text}}>R$ {p.strike.toFixed(2)}</div>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>STRIKE</div>
+                      <div style={{fontSize:14,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {p.strike.toFixed(2)}</div>
                     </div>
                     <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted}}>PRÊMIO TOTAL</div>
-                      <div style={{fontSize:14,fontWeight:600,color:C.green}}>R$ {premioTotal.toFixed(2)}</div>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>PRÊMIO TOTAL</div>
+                      <div style={{fontSize:14,fontWeight:600,color:C.green,fontFamily:"var(--font-mono)"}}>R$ {premioTotal.toFixed(2)}</div>
                     </div>
                     <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted}}>NOCIONAL</div>
-                      <div style={{fontSize:14,fontWeight:600,color:C.text}}>R$ {noc.toFixed(0)}</div>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>NOCIONAL</div>
+                      <div style={{fontSize:14,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {noc.toFixed(0)}</div>
                     </div>
                     <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted}}>RETORNO</div>
-                      <div style={{fontSize:14,fontWeight:600,color:C.yellow}}>{retorno.toFixed(2)}%</div>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RETORNO</div>
+                      <div style={{fontSize:14,fontWeight:600,color:C.yellow,fontFamily:"var(--font-mono)"}}>{retorno.toFixed(2)}%</div>
                     </div>
                     <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted}}>VENCIMENTO</div>
-                      <div style={{fontSize:14,fontWeight:600,color:alerta?C.red:dias<=10?C.yellow:C.text}}>
-                        {dias}d {alerta?"⚠️":""}
+                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>VENCIMENTO</div>
+                      <div style={{fontSize:14,fontWeight:600,color:alerta?C.red:dias<=10?C.yellow:C.text,fontFamily:"var(--font-mono)",
+                        display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+                        {dias}d {alerta&&<Icon name="alert" size={12}/>}
                       </div>
                       <div style={{fontSize:10,color:C.muted}}>{p.dataVenc}</div>
                     </div>
@@ -663,8 +711,9 @@ function TabPosicoes(){
                   <Btn onClick={()=>remover(p.id)} variant="danger" style={{padding:"6px 12px",fontSize:11}}>Remover</Btn>
                 </div>
                 {alerta&&(
-                  <div style={{marginTop:10,padding:"6px 10px",background:C.red+"11",borderRadius:6,fontSize:11,color:C.red}}>
-                    ⚠️ Vence em {dias} dia(s) — decida: fechar, rolar ou deixar expirar
+                  <div style={{marginTop:10,padding:"8px 10px",background:C.red+"0F",borderRadius:8,fontSize:11,color:C.red,
+                    display:"flex",alignItems:"center",gap:6}}>
+                    <Icon name="alert" size={13}/> Vence em {dias} dia(s) — decida: fechar, rolar ou deixar expirar
                   </div>
                 )}
               </Card>
@@ -740,33 +789,33 @@ function TabRolagem(){
             <div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 <Fld label="Strike atual">
-                  <input type="number" value={strikeAtual} onChange={e=>setStrikeAtual(e.target.value)} placeholder="45.05" style={iS()}/>
+                  <input className="op-input" type="number" value={strikeAtual} onChange={e=>setStrikeAtual(e.target.value)} placeholder="45.05" style={iS()}/>
                 </Fld>
                 <Fld label="Prêmio original">
-                  <input type="number" value={premioOriginal} onChange={e=>setPremioOriginal(e.target.value)} placeholder="1.44" style={iS()}/>
+                  <input className="op-input" type="number" value={premioOriginal} onChange={e=>setPremioOriginal(e.target.value)} placeholder="1.44" style={iS()}/>
                 </Fld>
               </div>
               <Fld label="Custo recompra atual" hint="Prêmio atual no mercado para fechar">
-                <input type="number" value={premioRecompra} onChange={e=>setPremioRecompra(e.target.value)} placeholder="0.36" style={iS()}/>
+                <input className="op-input" type="number" value={premioRecompra} onChange={e=>setPremioRecompra(e.target.value)} placeholder="0.36" style={iS()}/>
               </Fld>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 <Fld label="Novo strike">
-                  <input type="number" value={novoStrike} onChange={e=>setNovoStrike(e.target.value)} placeholder="46.00" style={iS()}/>
+                  <input className="op-input" type="number" value={novoStrike} onChange={e=>setNovoStrike(e.target.value)} placeholder="46.00" style={iS()}/>
                 </Fld>
                 <Fld label="Quantidade">
-                  <input type="number" value={qtd} onChange={e=>setQtd(e.target.value)} placeholder="100" style={iS()}/>
+                  <input className="op-input" type="number" value={qtd} onChange={e=>setQtd(e.target.value)} placeholder="100" style={iS()}/>
                 </Fld>
               </div>
               <SectionTitle>Opções de Rolagem</SectionTitle>
               {[0,1,2].map(i=>(
                 <div key={i} style={{marginBottom:8}}>
-                  <div style={{fontSize:10,color:C.muted,marginBottom:4}}>OPÇÃO {i+1}</div>
+                  <div style={{fontSize:10,color:C.muted,marginBottom:4,fontWeight:600}}>OPÇÃO {i+1}</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                    <input type="date" value={novasVenc[i]}
+                    <input className="op-input" type="date" value={novasVenc[i]}
                       onChange={e=>{const v=[...novasVenc];v[i]=e.target.value;setNovasVenc(v);}} style={iS({fontSize:12})}/>
                     <div style={{position:"relative"}}>
                       <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:11}}>R$</span>
-                      <input type="number" value={novosPremios[i]} placeholder="novo prêmio"
+                      <input className="op-input" type="number" value={novosPremios[i]} placeholder="novo prêmio"
                         onChange={e=>{const p=[...novosPremios];p[i]=e.target.value;setNovosPremios(p);}} style={iS({paddingLeft:20,fontSize:12})}/>
                     </div>
                   </div>
@@ -779,11 +828,8 @@ function TabRolagem(){
 
       <div>
         {!result?(
-          <Card style={{padding:60,textAlign:"center"}}>
-            <div style={{fontSize:36,marginBottom:12}}>🔄</div>
-            <div style={{fontSize:15,fontWeight:600,color:C.text,marginBottom:6}}>Simule sua rolagem</div>
-            <div style={{fontSize:12,color:C.muted}}>Preencha a posição atual e até 3 opções de rolagem — o sistema calcula qual compensa mais</div>
-          </Card>
+          <EmptyState icon="refresh" title="Simule sua rolagem"
+            desc="Preencha a posição atual e até 3 opções de rolagem — o sistema calcula qual compensa mais"/>
         ):(
           <>
             <Card style={{marginBottom:12}}>
@@ -806,8 +852,8 @@ function TabRolagem(){
                   {result.opcoes.map((o,i)=>{
                     const vale=o.creditoLiq>0&&o.retorno>=o.sp;
                     return(
-                      <div key={i} style={{background:vale?C.green+"0A":C.red+"0A",
-                        border:`1px solid ${vale?C.green+"44":C.red+"33"}`,borderRadius:10,padding:14}}>
+                      <div key={i} style={{background:vale?C.green+"08":C.red+"08",
+                        border:`1px solid ${vale?C.green+"40":C.red+"2E"}`,borderRadius:12,padding:14}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
                           <div style={{fontWeight:700,color:C.text}}>Opção {i+1} — {o.venc} ({o.dias} dias)</div>
                           <Badge color={vale?C.green:C.red}>{vale?"VALE ROLAR":"NÃO VALE"}</Badge>
@@ -887,16 +933,16 @@ function TabPerformance(){
           <SectionTitle>Lançar Resultado do Mês</SectionTitle>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
             <Fld label="Mês">
-              <select value={form.mes} onChange={e=>setF("mes",e.target.value)} style={iS()}>
+              <select className="op-select" value={form.mes} onChange={e=>setF("mes",e.target.value)} style={iS()}>
                 <option value="">Selecione</option>
                 {meses.map(m=><option key={m} value={m}>{m}</option>)}
               </select>
             </Fld>
             <Fld label="Resultado líq. (R$)">
-              <input type="number" value={form.resultado} onChange={e=>setF("resultado",e.target.value)} placeholder="267.76" style={iS()}/>
+              <input className="op-input" type="number" value={form.resultado} onChange={e=>setF("resultado",e.target.value)} placeholder="267.76" style={iS()}/>
             </Fld>
             <Fld label="Meta mensal (R$)">
-              <input type="number" value={form.meta} onChange={e=>setF("meta",e.target.value)} placeholder="2000" style={iS()}/>
+              <input className="op-input" type="number" value={form.meta} onChange={e=>setF("meta",e.target.value)} placeholder="2000" style={iS()}/>
             </Fld>
             <Fld label="">
               <div style={{paddingTop:18}}><Btn onClick={adicionar} style={{width:"100%"}}>Salvar</Btn></div>
@@ -930,7 +976,7 @@ function TabPerformance(){
                   <div style={{width:3,background:C.accent+"66",borderRadius:"2px 2px 0 0",height:`${selicH}px`}}/>
                 </div>
                 <div style={{fontSize:9,color:C.muted}}>{d.mes}</div>
-                {d.hasData&&<div style={{fontSize:9,fontWeight:700,color:col}}>{d.resultado>=0?"+":""}{d.resultado?.toFixed(0)}</div>}
+                {d.hasData&&<div style={{fontSize:9,fontWeight:700,color:col,fontFamily:"var(--font-mono)"}}>{d.resultado>=0?"+":""}{d.resultado?.toFixed(0)}</div>}
               </div>
             );
           })}
@@ -950,36 +996,36 @@ function TabPerformance(){
           <thead>
             <tr>
               {["Mês","Resultado (R$)","Meta (R$)","Selic equi.","Bateu Meta?","Múltiplo Selic"].map(h=>(
-                <th key={h} style={{padding:"7px 10px",background:C.input,color:C.muted,textAlign:"center",
-                  fontSize:10,textTransform:"uppercase",letterSpacing:"0.5px",border:`1px solid ${C.border}`}}>{h}</th>
+                <th key={h} style={{padding:"8px 10px",background:C.input,color:C.muted,textAlign:"center",
+                  fontSize:10,textTransform:"uppercase",letterSpacing:"0.5px",fontWeight:700,border:`1px solid ${C.borderSoft}`}}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {data.map((d,i)=>(
-              <tr key={i} style={{background:i%2===0?C.card:"#1a2030"}}>
-                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.border}`,fontWeight:600,color:C.text}}>{d.mes}/{ano}</td>
-                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.border}`,
+              <tr key={i} style={{background:i%2===0?C.card:"#151a26"}}>
+                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:600,color:C.text}}>{d.mes}/{ano}</td>
+                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontFamily:"var(--font-mono)",
                   color:!d.hasData?C.muted:d.resultado>=0?C.green:C.red,fontWeight:d.hasData?700:400}}>
                   {d.hasData?`R$ ${d.resultado?.toFixed(2)}`:"—"}
                 </td>
-                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.border}`,color:C.muted}}>R$ {d.meta.toFixed(0)}</td>
-                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.border}`,color:C.muted}}>{d.selicMes.toFixed(2)}%</td>
-                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.border}`}}>
-                  {d.hasData?<Badge color={d.resultado>=d.meta?C.green:C.red}>{d.resultado>=d.meta?"✓ SIM":"✗ NÃO"}</Badge>:"—"}
+                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted,fontFamily:"var(--font-mono)"}}>R$ {d.meta.toFixed(0)}</td>
+                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted,fontFamily:"var(--font-mono)"}}>{d.selicMes.toFixed(2)}%</td>
+                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`}}>
+                  {d.hasData?<Badge color={d.resultado>=d.meta?C.green:C.red}>{d.resultado>=d.meta?"SIM":"NÃO"}</Badge>:"—"}
                 </td>
-                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.border}`,
+                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontFamily:"var(--font-mono)",
                   color:d.hasData&&d.resultado>0?d.resultado/d.selicMes>=1.5?C.green:d.resultado/d.selicMes>=1?C.yellow:C.muted:C.muted}}>
                   {d.hasData&&d.resultado>0?`${(d.resultado/d.selicMes).toFixed(1)}×`:"—"}
                 </td>
               </tr>
             ))}
-            <tr style={{background:C.accent+"11"}}>
-              <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.border}`,fontWeight:700,color:C.text}}>TOTAL</td>
-              <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.border}`,fontWeight:700,color:totalRes>=0?C.green:C.red}}>R$ {totalRes.toFixed(2)}</td>
-              <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.border}`,color:C.muted}}>—</td>
-              <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.border}`,color:C.muted}}>{totalSelic.toFixed(2)}%</td>
-              <td colSpan={2} style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.border}`,color:C.muted}}>
+            <tr style={{background:C.accent+"0F"}}>
+              <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:700,color:C.text}}>TOTAL</td>
+              <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:700,color:totalRes>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>R$ {totalRes.toFixed(2)}</td>
+              <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted}}>—</td>
+              <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted,fontFamily:"var(--font-mono)"}}>{totalSelic.toFixed(2)}%</td>
+              <td colSpan={2} style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted}}>
                 {acertos}/{mesesComDados.length} meses com meta batida
               </td>
             </tr>
@@ -994,11 +1040,11 @@ function TabPerformance(){
 // APP ROOT
 // ════════════════════════════════════════════════════════════════════
 const TABS=[
-  {id:"analisar",label:"⚡ Analisar",comp:TabAnalisar},
-  {id:"comparar",label:"⚖️ Comparar Strikes",comp:TabComparar},
-  {id:"posicoes",label:"📋 Posições",comp:TabPosicoes},
-  {id:"rolagem",label:"🔄 Rolagem",comp:TabRolagem},
-  {id:"performance",label:"📈 Performance",comp:TabPerformance},
+  {id:"analisar",label:"Analisar",icon:"zap",comp:TabAnalisar},
+  {id:"comparar",label:"Comparar Strikes",icon:"bars",comp:TabComparar},
+  {id:"posicoes",label:"Posições",icon:"clipboard",comp:TabPosicoes},
+  {id:"rolagem",label:"Rolagem",icon:"refresh",comp:TabRolagem},
+  {id:"performance",label:"Performance",icon:"trending",comp:TabPerformance},
 ];
 
 function LogoutButton(){
@@ -1007,10 +1053,13 @@ function LogoutButton(){
     window.location.href="/login";
   };
   return (
-    <button onClick={sair} style={{
-      marginLeft:"auto",background:"transparent",border:`1px solid ${C.border}`,
-      color:C.muted,borderRadius:6,padding:"6px 12px",fontSize:11,cursor:"pointer"
-    }}>Sair</button>
+    <button className="op-btn" onClick={sair} style={{
+      marginLeft:"auto",display:"flex",alignItems:"center",gap:6,
+      background:"transparent",border:`1px solid ${C.border}`,
+      color:C.muted,borderRadius:8,padding:"7px 13px",fontSize:11.5,fontWeight:600,cursor:"pointer"
+    }}>
+      <Icon name="logout" size={13}/> Sair
+    </button>
   );
 }
 
@@ -1018,30 +1067,43 @@ export default function OpcoesApp(){
   const [tab,setTab]=useState("analisar");
   const Comp=TABS.find(t=>t.id===tab)?.comp||TabAnalisar;
   return(
-    <div style={{minHeight:"100vh",background:C.bg,color:C.text,
-                 fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
+    <div style={{minHeight:"100vh",background:C.bgGradient,color:C.text,fontFamily:"var(--font-sans)"}}>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       {/* Header */}
-      <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"12px 24px",
-                   display:"flex",alignItems:"center",gap:12}}>
-        <div style={{width:30,height:30,borderRadius:8,background:C.accent+"22",
-                     display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>⚡</div>
+      <div style={{background:C.card,borderBottom:`1px solid ${C.borderSoft}`,padding:"14px 24px",
+                   display:"flex",alignItems:"center",gap:14}}>
+        <div style={{width:36,height:36,borderRadius:10,
+                     background:"linear-gradient(135deg, #5B8DEF 0%, #7C6CF0 100%)",
+                     display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",
+                     boxShadow:"0 4px 14px rgba(91,141,239,0.35)"}}>
+          <Icon name="zap" size={19}/>
+        </div>
         <div>
-          <div style={{fontWeight:700,fontSize:14}}>Opções B3 — Análise & Gestão</div>
-          <div style={{fontSize:11,color:C.muted}}>Black-Scholes · Vol histórica automática · Selic 14%</div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{fontWeight:700,fontSize:15,letterSpacing:"-0.2px"}}>Opções B3</div>
+            <span style={{fontSize:9,fontWeight:700,color:C.accent,background:C.accent+"1A",
+                          border:`1px solid ${C.accent}33`,borderRadius:20,padding:"2px 7px",letterSpacing:"0.4px"}}>BETA</span>
+          </div>
+          <div style={{fontSize:11.5,color:C.muted,marginTop:1}}>Black-Scholes · Volatilidade automática · Gestão de posições</div>
         </div>
         <LogoutButton/>
       </div>
       {/* Tabs */}
-      <div style={{background:C.card,borderBottom:`1px solid ${C.border}`,padding:"0 24px",
-                   display:"flex",gap:4}}>
-        {TABS.map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{
-            padding:"10px 16px",background:"transparent",border:"none",cursor:"pointer",
-            fontSize:12,fontWeight:600,color:tab===t.id?C.accent:C.muted,
-            borderBottom:`2px solid ${tab===t.id?C.accent:"transparent"}`,
-            transition:"all 0.15s"
-          }}>{t.label}</button>
-        ))}
+      <div style={{background:C.card,borderBottom:`1px solid ${C.borderSoft}`,padding:"0 20px",
+                   display:"flex",gap:2}}>
+        {TABS.map(t=>{
+          const active=tab===t.id;
+          return(
+            <button key={t.id} className="op-tab" onClick={()=>setTab(t.id)} style={{
+              display:"flex",alignItems:"center",gap:7,padding:"11px 14px",margin:"6px 0",
+              background:active?C.accent+"14":"transparent",border:"none",borderRadius:8,cursor:"pointer",
+              fontSize:12.5,fontWeight:600,color:active?C.accent:C.muted
+            }}>
+              <Icon name={t.icon} size={15}/>
+              {t.label}
+            </button>
+          );
+        })}
       </div>
       {/* Content */}
       <div style={{maxWidth:1200,margin:"0 auto",padding:20}}>
