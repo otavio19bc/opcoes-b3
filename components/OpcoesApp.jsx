@@ -145,6 +145,7 @@ function Icon({name,size=18,style={}}){
     case"save":return<svg{...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
     case"info":return<svg{...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
     case"external":return<svg{...p}><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
+    case"circle":return<svg{...p}><circle cx="12" cy="12" r="9"/></svg>;
     default:return null;
   }
 }
@@ -1089,99 +1090,110 @@ function TabPerformance(){
 // ════════════════════════════════════════════════════════════════════
 // ABA 6 — PREÇO TETO
 // ════════════════════════════════════════════════════════════════════
-const getChecklist=(ticker)=>[
-  {id:"div5anos",cat:"Dividendos",label:"Paga dividendos há 5+ anos consecutivos?",peso:2,
-    ressalva:"Histórico curto de dividendos — sustentabilidade incerta",
-    dica:"Veja o histórico de proventos ano a ano",
-    fonte:{label:"Status Invest — Proventos",url:`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}},
-  {id:"dyMedio",cat:"Dividendos",label:"DY médio dos últimos 3 anos acima de 5%?",peso:2,
-    ressalva:"DY médio baixo — retorno de renda abaixo do esperado",
-    dica:"Veja o DY de cada ano na aba Proventos",
-    fonte:{label:"Status Invest — Proventos",url:`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}},
-  {id:"payoutOk",cat:"Dividendos",label:"Payout sustentável (distribui menos do que ganha)?",peso:2,
-    ressalva:"Payout insustentável — dividendo pode ser cortado",
-    dica:"Payout abaixo de 80% é saudável. Acima de 100% é insustentável",
-    fonte:{label:"Status Invest — Resultados",url:`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}},
-  {id:"lucroEst",cat:"Fundamentos",label:"Lucro líquido estável ou crescente nos últimos 3 anos?",peso:2,
-    ressalva:"Lucro volátil — dividendo futuro é incerto",
-    dica:"Veja o gráfico de Lucro Líquido nos últimos anos",
-    fonte:{label:"Status Invest — Resultados",url:`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}},
-  {id:"roeOk",cat:"Fundamentos",label:"ROE acima de 10%?",peso:1,
-    ressalva:"ROE baixo — retorno sobre capital fraco",
-    dica:"ROE = Lucro Líquido / Patrimônio Líquido. Acima de 15% é bom",
-    fonte:{label:"Fundamentus",url:`https://www.fundamentus.com.br/detalhes.php?papel=${ticker}`}},
-  {id:"dividaOk",cat:"Fundamentos",label:"Dívida líquida/EBITDA abaixo de 2,5×?",peso:1,
-    ressalva:"Endividamento elevado — risco de corte de dividendo em crise",
-    dica:"Dívida Líquida / EBITDA. Abaixo de 2× é confortável",
-    fonte:{label:"Fundamentus",url:`https://www.fundamentus.com.br/detalhes.php?papel=${ticker}`}},
-  {id:"setorPer",cat:"Qualitativo",label:"Setor perene (energia, banco, saneamento, telecom, seguros)?",peso:1,
-    ressalva:"Setor cíclico — dividendo oscila com o ciclo econômico",
-    dica:"Setores cíclicos: mineração, petróleo, siderurgia, varejo, frigoríficos",
+const SETORES_DB={
+  BBAS3:"Banco",ITUB4:"Banco",BBDC4:"Banco",SANB11:"Banco",BRSR6:"Banco",
+  EGIE3:"Energia elétrica",TAEE11:"Energia elétrica",ENGI11:"Energia elétrica",
+  CPFE3:"Energia elétrica",ENBR3:"Energia elétrica",AURE3:"Energia elétrica",
+  CPLE6:"Energia elétrica",TRPL4:"Energia elétrica",EQTL3:"Energia elétrica",
+  SAPR11:"Saneamento",CSMG3:"Saneamento",
+  VIVT3:"Telecom",TIMS3:"Telecom",
+  PETR4:"Petróleo (cíclico)",PETR3:"Petróleo (cíclico)",PRIO3:"Petróleo (cíclico)",
+  RECV3:"Petróleo (cíclico)",CSAN3:"Petróleo (cíclico)",
+  VALE3:"Mineração (cíclico)",CSNA3:"Siderurgia (cíclico)",GGBR4:"Siderurgia (cíclico)",
+  BBSE3:"Seguros",IRBR3:"Seguros",PSSA3:"Seguros",
+  ABEV3:"Bebidas",WEGE3:"Máquinas industriais",RENT3:"Locação de veículos",
+  VBBR3:"Distribuição combustível",RAIA3:"Farmácia (varejo)",
+  MXRF11:"FII - Papel",KNRI11:"FII - Híbrido",HGLG11:"FII - Logística",
+  XPLG11:"FII - Logística",BCFF11:"FII - Fundo de fundos",
+  CCRO3:"Concessão rodovias",ECOR3:"Concessão rodovias",TGMA3:"Logística",
+  SUZB3:"Papel e celulose (cíclico)",KLBN11:"Papel e celulose (cíclico)",
+  MGLU3:"Varejo (cíclico)",LREN3:"Varejo (cíclico)",AMER3:"Varejo (cíclico)",
+};
+
+const SETORES_CICLICOS=["cíclico","mineração","petróleo","siderurgia","papel","celulose","varejo"];
+const isCiclico=(setor)=>setor&&SETORES_CICLICOS.some(s=>setor.toLowerCase().includes(s));
+
+function AutoTag({tipo}){
+  const cfg={
+    auto:{color:C.green,label:"auto"},
+    parcial:{color:C.yellow,label:"parcial"},
+    manual:{color:C.muted,label:"manual"},
+    calc:{color:C.accent2,label:"calculado"},
+  }[tipo]||{color:C.muted,label:"manual"};
+  return <span style={{fontSize:9,color:cfg.color,marginLeft:4,fontWeight:700}}>● {cfg.label}</span>;
+}
+
+const CHECKLIST=[
+  {id:"div5anos",cat:"Dividendos",label:"Paga dividendos há 5+ anos consecutivos?",peso:2,auto:false,
+    dica:"Verifique se há proventos em todos os anos recentes no gráfico",
+    fonte:(t)=>({label:"Status Invest — Proventos",url:`https://statusinvest.com.br/acoes/${t.toLowerCase()}`})},
+  {id:"payoutOk",cat:"Dividendos",label:"Payout sustentável (abaixo de 80%)?",peso:2,auto:true,
+    autoLabel:"Calculado automaticamente (Dividendo ÷ EPS)",
+    dica:"Payout = quanto do lucro é distribuído. Acima de 100% é insustentável",
+    fonte:(t)=>({label:"Status Invest — Resultados",url:`https://statusinvest.com.br/acoes/${t.toLowerCase()}`})},
+  {id:"lucroEst",cat:"Fundamentos",label:"Lucro não caiu mais de 20% em nenhum dos últimos 3 anos?",peso:2,auto:false,
+    dica:"Veja o gráfico de Lucro Líquido — quedas bruscas indicam instabilidade",
+    fonte:(t)=>({label:"Status Invest — Resultados",url:`https://statusinvest.com.br/acoes/${t.toLowerCase()}`})},
+  {id:"roeOk",cat:"Fundamentos",label:"ROE acima de 10%?",peso:1,auto:false,
+    dica:"ROE = retorno sobre patrimônio. Bancos costumam ter ROE alto (15-20%+)",
+    fonte:(t)=>({label:"Status Invest — Indicadores",url:`https://statusinvest.com.br/acoes/${t.toLowerCase()}`})},
+  {id:"dividaOk",cat:"Fundamentos",label:"Dívida líquida/EBITDA abaixo de 2,5×?",peso:1,auto:false,
+    dica:"Veja 'Dív. Líq./EBITDA' nos indicadores. Utilities (energia, saneamento) aceitam até 3-4×",
+    fonte:(t)=>({label:"Status Invest — Indicadores",url:`https://statusinvest.com.br/acoes/${t.toLowerCase()}`})},
+  {id:"setorPer",cat:"Qualitativo",label:"Setor perene ou com vantagem competitiva clara?",peso:1,auto:true,
+    autoLabel:"Detectado pelo setor do ativo",
+    dica:"Energia, banco, saneamento, telecom = perene. Mineração, petróleo, varejo = cíclico",
     fonte:null},
-  {id:"vantagem",cat:"Qualitativo",label:"Empresa com vantagem competitiva clara (concessão, monopólio, marca)?",peso:1,
-    ressalva:"Sem vantagem competitiva clara — maior risco de perda de mercado",
-    dica:"Concessões, licenças regulatórias e monopólios naturais são os melhores fossos",
-    fonte:null},
-  {id:"gestao",cat:"Qualitativo",label:"Gestão historicamente alinhada com acionistas?",peso:1,
-    ressalva:"Histórico de gestão desfavorável ao minoritário",
-    dica:"Veja histórico de recompras, tag along e reclamações de minoritários",
-    fonte:{label:"RI da empresa + Status Invest",url:`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}},
-  {id:"liquidez",cat:"Qualitativo",label:"Boa liquidez em bolsa (volume médio diário expressivo)?",peso:1,
-    ressalva:"Baixa liquidez — dificuldade para montar/desmontar posição e vender opções",
-    dica:"Volume médio diário acima de R$5M é suficiente para lançamento coberto",
-    fonte:{label:"Status Invest — Indicadores",url:`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}},
 ];
 
-const CATEGORIAS=["Dividendos","Fundamentos","Qualitativo"];
-const SETORES_CICLICOS=["mineração","petróleo","siderurgia","papel","celulose","frigorífico","varejo"];
-
-function gerarRessalvas({dyAtual,dyMedio,payout,setor,epsVariacao,precoAtual,precoTeto,checklist}){
+function gerarRessalvas({dyAtual,dyMedio,payoutCalc,setor,precoAtual,precoTeto,checklist}){
   const ressalvas=[];
   if(dyAtual&&dyMedio&&parseFloat(dyAtual)>parseFloat(dyMedio)*1.5){
-    ressalvas.push({tipo:"warn",texto:`DY atual (${dyAtual}%) está ${(parseFloat(dyAtual)/parseFloat(dyMedio)).toFixed(1)}× acima da média histórica (${dyMedio}%) — verifique se houve dividendo extraordinário que não se repetirá`});
+    ressalvas.push({tipo:"warn",texto:`DY atual (${dyAtual}%) está ${(parseFloat(dyAtual)/parseFloat(dyMedio)).toFixed(1)}× acima da média histórica (${dyMedio}%) — pode ser dividendo extraordinário não recorrente`});
   }
-  if(setor&&SETORES_CICLICOS.some(s=>setor.toLowerCase().includes(s))){
-    ressalvas.push({tipo:"warn",texto:`Setor cíclico detectado (${setor}) — use a média de dividendos de pelo menos 5 anos no cálculo do preço teto, não o último ano isolado`});
+  if(isCiclico(setor)){
+    ressalvas.push({tipo:"warn",texto:`Setor cíclico (${setor}) — dividendo oscila com o ciclo. Use média de 5+ anos no cálculo, não o último ano`});
   }
-  if(payout&&parseFloat(payout)>100){
-    ressalvas.push({tipo:"bad",texto:`Payout de ${payout}% — a empresa está distribuindo mais do que ganha. Dividendo provavelmente não sustentável`});
-  }
-  if(epsVariacao&&parseFloat(epsVariacao)>40){
-    ressalvas.push({tipo:"warn",texto:`Variação de lucro de ${epsVariacao}% ano a ano — resultado muito volátil. Preço teto baseado no dividendo atual pode ser enganoso`});
+  if(payoutCalc&&parseFloat(payoutCalc)>100){
+    ressalvas.push({tipo:"bad",texto:`Payout calculado de ${payoutCalc}% — empresa distribuindo mais do que ganha. Dividendo provavelmente insustentável`});
   }
   if(precoAtual&&precoTeto){
-    const margem=((precoTeto-precoAtual)/precoTeto)*100;
-    if(margem<10&&margem>=0){
-      ressalvas.push({tipo:"warn",texto:`Margem de segurança de apenas ${margem.toFixed(0)}% — o ideal é comprar com 15-20% abaixo do teto`});
+    const m=((precoTeto-precoAtual)/precoTeto)*100;
+    if(m<10&&m>=0){
+      ressalvas.push({tipo:"warn",texto:`Margem de segurança de apenas ${m.toFixed(0)}% — ideal é comprar 15-20% abaixo do teto`});
     }
   }
-  ressalvas.push({tipo:"info",texto:"O preço teto é o valor MÁXIMO a pagar para atingir o yield desejado — não é garantia de retorno futuro nem considera crescimento de dividendos"});
-  checklist.forEach(item=>{if(item.resposta===false) ressalvas.push({tipo:"bad",texto:item.ressalva});});
+  ressalvas.push({tipo:"info",texto:"Preço teto = valor MÁXIMO a pagar para atingir o yield desejado. Não garante retorno futuro nem considera crescimento de dividendos"});
+  checklist.forEach(item=>{if(item.resposta===false) ressalvas.push({tipo:"bad",texto:item.ressalva||`Critério "${item.label}" não atendido`});});
   return ressalvas;
 }
 
 function TabPrecoTeto(){
   const [ticker,setTicker]=useState("PETR4");
   const [fetchStatus,setFetchStatus]=useState("idle");
+  const [fetchDivStatus,setFetchDivStatus]=useState("idle");
+
   const [cotacao,setCotacao]=useState("");
   const [dyAtual,setDyAtual]=useState("");
   const [pl,setPl]=useState("");
   const [eps,setEps]=useState("");
-  const [ativosDB,setAtivosDB]=useState({});
-  const [dbLoaded,setDbLoaded]=useState(false);
+  const [divAnual,setDivAnual]=useState("");
   const [dyMedio,setDyMedio]=useState("");
+  const [payoutCalc,setPayoutCalc]=useState("");
+  const [setorAuto,setSetorAuto]=useState("");
+  const [divHistInfo,setDivHistInfo]=useState(null);
+
   const [roe,setRoe]=useState("");
   const [dividaEbitda,setDividaEbitda]=useState("");
-  const [payout,setPayout]=useState("");
-  const [epsVariacao,setEpsVariacao]=useState("");
-  const [setor,setSetor]=useState("");
-  const [divAnual,setDivAnual]=useState("");
-  const [yieldMin,setYieldMin]=useState("6");
+
   const [respostas,setRespostas]=useState({});
-  const [result,setResult]=useState(null);
   const [expandedDica,setExpandedDica]=useState(null);
 
-  const checklist=getChecklist(ticker);
+  const [yieldMin,setYieldMin]=useState("6");
+  const [result,setResult]=useState(null);
+
+  const [ativosDB,setAtivosDB]=useState({});
+  const [dbLoaded,setDbLoaded]=useState(false);
 
   useEffect(()=>{
     try{
@@ -1196,50 +1208,102 @@ function TabPrecoTeto(){
     localStorage.setItem("op_precoteto_db",JSON.stringify(ativosDB));
   },[ativosDB,dbLoaded]);
 
+  // Detecta setor automaticamente
+  useEffect(()=>{
+    const s=SETORES_DB[ticker]||"";
+    setSetorAuto(s);
+    if(s){
+      const perene=!isCiclico(s);
+      setRespostas(r=>({...r,setorPer:perene}));
+    }else{
+      setRespostas(r=>{const nr={...r};delete nr.setorPer;return nr;});
+    }
+  },[ticker]);
+
+  // Calcula payout automaticamente quando temos dividendo e EPS
+  useEffect(()=>{
+    if(divAnual&&eps&&parseFloat(eps)>0){
+      const p=(parseFloat(divAnual)/parseFloat(eps)*100).toFixed(0);
+      setPayoutCalc(p);
+      setRespostas(r=>({...r,payoutOk:parseFloat(p)<=80}));
+    }else{
+      setPayoutCalc("");
+    }
+  },[divAnual,eps]);
+
   const carregarAtivo=useCallback((tick)=>{
     const saved=ativosDB[tick];
-    if(saved){
-      setDyMedio(saved.dyMedio||"");setRoe(saved.roe||"");
-      setDividaEbitda(saved.dividaEbitda||"");setPayout(saved.payout||"");
-      setEpsVariacao(saved.epsVariacao||"");setSetor(saved.setor||"");
-      setDivAnual(saved.divAnual||"");setRespostas(saved.respostas||{});
-    }else{
-      setDyMedio("");setRoe("");setDividaEbitda("");setPayout("");
-      setEpsVariacao("");setSetor("");setDivAnual("");setRespostas({});
-    }
+    setRoe(saved?.roe||"");
+    setDividaEbitda(saved?.dividaEbitda||"");
+    // Preserva payoutOk/setorPer já recalculados para o novo ticker (não
+    // sobrescrever com dados salvos de outro ativo nem apagar o auto-cálculo).
+    setRespostas(r=>{
+      const merged={...(saved?.respostas||{})};
+      if(r.payoutOk!==undefined) merged.payoutOk=r.payoutOk;
+      if(r.setorPer!==undefined) merged.setorPer=r.setorPer;
+      return merged;
+    });
     setResult(null);
   },[ativosDB]);
 
-  const buscarCotacao=useCallback(async(tick)=>{
+  const buscarTudo=useCallback(async(tick)=>{
     if(!tick||tick.length<4) return;
-    setFetchStatus("loading");setCotacao("");setDyAtual("");setPl("");setEps("");
+    setFetchStatus("loading");setFetchDivStatus("loading");
+    setCotacao("");setDyAtual("");setPl("");setEps("");setDivAnual("");setDyMedio("");
+    setDivHistInfo(null);
     try{
-      const r=await fetch(`/api/brapi/${tick}?fundamentals=1`);
+      const r=await fetch(`/api/brapi/${tick}?dividends=1`);
       const d=await r.json();
       if(d.price){
         setCotacao(String(d.price));
         if(typeof d.dividendYield==="number") setDyAtual(d.dividendYield.toFixed(2));
         if(typeof d.pl==="number") setPl(d.pl.toFixed(1));
         if(typeof d.eps==="number") setEps(d.eps.toFixed(2));
-        if(d.setor) setSetor(prev=>prev||d.setor);
-        if(typeof d.dividendYield==="number"){
-          const divEst=(d.price*d.dividendYield/100).toFixed(2);
-          setDivAnual(prev=>prev||divEst);
-        }
         setFetchStatus("ok");
-      }else{setFetchStatus("error");}
-    }catch{setFetchStatus("error");}
+      }else{
+        setFetchStatus("error");
+      }
+
+      const dividends=d.dividends||[];
+      if(dividends.length){
+        const porAno={};
+        dividends.forEach(div=>{
+          const ano=new Date(div.date).getFullYear();
+          porAno[ano]=(porAno[ano]||0)+(div.value||0);
+        });
+        const anos=Object.keys(porAno).sort().reverse().slice(0,3);
+        if(anos.length){
+          const divMediaAnual=anos.reduce((acc,a)=>acc+porAno[a],0)/anos.length;
+          const dyMedioCalc=d.price?(divMediaAnual/d.price*100).toFixed(2):null;
+          const divAnualCalc=porAno[anos[0]]?.toFixed(2);
+          const hist={dyMedio:dyMedioCalc,divAnual:divAnualCalc,anos,porAno,suficiente:anos.length>=3};
+          setDivHistInfo(hist);
+          setDivAnual(prev=>prev||hist.divAnual||"");
+          setDyMedio(hist.dyMedio||"");
+          setFetchDivStatus(hist.suficiente?"ok":"parcial");
+        }else{
+          setFetchDivStatus("error");
+        }
+      }else{
+        setFetchDivStatus("error");
+      }
+    }catch{
+      setFetchStatus("error");
+      setFetchDivStatus("error");
+    }
   },[]);
 
   useEffect(()=>{
     if(!ticker||ticker.length<4) return;
-    const t=setTimeout(()=>{buscarCotacao(ticker);carregarAtivo(ticker);},800);
+    const t=setTimeout(()=>{buscarTudo(ticker);carregarAtivo(ticker);},900);
     return()=>clearTimeout(t);
   },[ticker,dbLoaded]);
 
   const salvarAtivo=()=>{
-    setAtivosDB(db=>({...db,[ticker]:{dyMedio,roe,dividaEbitda,payout,epsVariacao,setor,divAnual,respostas}}));
+    setAtivosDB(db=>({...db,[ticker]:{roe,dividaEbitda,respostas}}));
   };
+
+  const setResposta=(id,val)=>{setRespostas(r=>({...r,[id]:val}));setResult(null);};
 
   const calcular=()=>{
     const preco=parseFloat(cotacao),div=parseFloat(divAnual),ym=parseFloat(yieldMin)/100;
@@ -1247,37 +1311,40 @@ function TabPrecoTeto(){
     const precoTeto=div/ym;
     const margemSeguranca=((precoTeto-preco)/precoTeto)*100;
     const dyReal=(div/preco)*100;
-    const itensChecklist=checklist.map(item=>({...item,resposta:respostas[item.id]}));
-    const pesoTotal=checklist.reduce((a,b)=>a+b.peso,0);
+
+    const itensChecklist=CHECKLIST.map(item=>({...item,resposta:respostas[item.id]}));
+    const pesoTotal=CHECKLIST.reduce((a,b)=>a+b.peso,0);
     const pesoObtido=itensChecklist.reduce((acc,item)=>item.resposta===true?acc+item.peso:acc,0);
     const respondidos=itensChecklist.filter(i=>i.resposta!==undefined).length;
     const nota=respondidos>0?(pesoObtido/pesoTotal*100):null;
+
     const veredito=margemSeguranca>=20?"COMPRAR":margemSeguranca>=0?"MONITORAR":"CARO";
     const vereditoColor=margemSeguranca>=20?C.green:margemSeguranca>=0?C.yellow:C.red;
     const notaLabel=nota===null?"INCOMPLETO":nota>=80?"APROVADO":nota>=60?"ATENÇÃO":"REPROVADO";
     const notaColor=nota===null?C.muted:nota>=80?C.green:nota>=60?C.yellow:C.red;
+
     let vereditoFinal,vereditoFinalColor,vereditoIcon;
     if(veredito==="COMPRAR"&&nota!==null&&nota>=80){vereditoFinal="APTO PARA POSIÇÃO E LANÇAMENTO";vereditoFinalColor=C.green;vereditoIcon="check";}
     else if(veredito==="CARO"){vereditoFinal="PREÇO ACIMA DO TETO — AGUARDAR";vereditoFinalColor=C.red;vereditoIcon="x";}
     else if(nota!==null&&nota<60){vereditoFinal="FUNDAMENTOS FRACOS — EVITAR";vereditoFinalColor=C.red;vereditoIcon="x";}
     else{vereditoFinal="MONITORAR — CONDIÇÕES PARCIAIS";vereditoFinalColor=C.yellow;vereditoIcon="alert";}
-    const ressalvas=gerarRessalvas({dyAtual,dyMedio,payout,setor,epsVariacao,precoAtual:preco,precoTeto,checklist:itensChecklist});
+
+    const ressalvas=gerarRessalvas({dyAtual,dyMedio,payoutCalc,setor:setorAuto,precoAtual:preco,precoTeto,checklist:itensChecklist});
     setResult({precoTeto,margemSeguranca,dyReal,preco,div,ym,veredito,vereditoColor,nota,notaLabel,notaColor,vereditoFinal,vereditoFinalColor,vereditoIcon,itensChecklist,pesoObtido,pesoTotal,ressalvas,respondidos});
   };
 
-  const setResposta=(id,val)=>{setRespostas(r=>({...r,[id]:val}));setResult(null);};
-
-  const checklistPorCat=CATEGORIAS.map(cat=>({cat,items:checklist.filter(i=>i.cat===cat)}));
   const precoTetoEstimado=divAnual&&yieldMin?(parseFloat(divAnual)/parseFloat(yieldMin)*100).toFixed(2):null;
 
   return(
     <div>
       <div style={{marginBottom:16}}>
         <div style={{fontSize:16,fontWeight:700,color:C.text}}>Preço Teto</div>
-        <div style={{fontSize:12,color:C.muted}}>Metodologia Barsi · Checklist de qualidade · Ressalvas automáticas</div>
+        <div style={{fontSize:12,color:C.muted}}>
+          Metodologia Barsi · <span style={{color:C.green,fontWeight:600}}>● automático</span> · <span style={{color:C.accent2,fontWeight:600}}>● calculado</span> · <span style={{color:C.muted,fontWeight:600}}>● 2 campos manuais</span>
+        </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:20,alignItems:"start"}}>
+      <div style={{display:"grid",gridTemplateColumns:"280px 1fr",gap:20,alignItems:"start"}}>
         {/* Coluna esquerda */}
         <div style={{display:"flex",flexDirection:"column",gap:12}}>
           <Card>
@@ -1287,102 +1354,136 @@ function TabPrecoTeto(){
                 placeholder="PETR4" style={iS()}/>
             </Fld>
 
-            <div style={{background:C.input,borderRadius:10,padding:11,marginBottom:10,border:`1px solid ${C.borderSoft}`}}>
-              <div style={{fontSize:9.5,color:C.accent,fontWeight:700,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>
-                Puxado automaticamente via Brapi
+            <div style={{background:C.input,borderRadius:10,padding:12,border:`1px solid ${C.borderSoft}`}}>
+              <div style={{fontSize:9.5,color:C.green,fontWeight:700,marginBottom:9,textTransform:"uppercase",letterSpacing:"0.5px"}}>
+                ● Dados automáticos
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                {[{l:"Cotação atual",v:cotacao?`R$ ${cotacao}`:"—"},{l:"DY atual",v:dyAtual?`${dyAtual}%`:"—"},{l:"P/L",v:pl||"—"},{l:"EPS (LPA)",v:eps?`R$ ${eps}`:"—"}].map(({l,v})=>(
+
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                {[{l:"Cotação",v:cotacao?`R$ ${cotacao}`:"—"},{l:"DY atual",v:dyAtual?`${dyAtual}%`:"—"},{l:"EPS (LPA)",v:eps?`R$ ${eps}`:"—"},{l:"Setor",v:setorAuto||"—"}].map(({l,v})=>(
                   <div key={l}>
                     <div style={{fontSize:9,color:C.muted}}>{l}</div>
-                    <div style={{fontSize:13,fontWeight:600,color:fetchStatus==="ok"?C.text:C.muted,fontFamily:"var(--font-mono)"}}>{v}</div>
+                    <div style={{fontSize:12,fontWeight:600,color:C.text,lineHeight:1.3,fontFamily:"var(--font-mono)"}}>{v}</div>
                   </div>
                 ))}
               </div>
-              {fetchStatus==="loading"&&<div style={{fontSize:11,color:C.muted,marginTop:6}}>Buscando...</div>}
-              {fetchStatus==="error"&&<div style={{fontSize:11,color:C.red,marginTop:6}}>Não encontrado — verifique o ticker</div>}
+
+              <div style={{borderTop:`1px solid ${C.borderSoft}`,paddingTop:8}}>
+                {fetchDivStatus==="loading"&&<div style={{fontSize:11,color:C.muted}}>Calculando histórico de dividendos...</div>}
+                {fetchDivStatus==="ok"&&divHistInfo&&(
+                  <div>
+                    <div style={{fontSize:10,color:C.green,fontWeight:700}}>● Dividendos históricos</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginTop:4}}>
+                      <div><div style={{fontSize:9,color:C.muted}}>Div. anual (último ano)</div><div style={{fontSize:12,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {divHistInfo.divAnual}</div></div>
+                      <div><div style={{fontSize:9,color:C.muted}}>DY médio 3 anos</div><div style={{fontSize:12,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>{divHistInfo.dyMedio}%</div></div>
+                    </div>
+                  </div>
+                )}
+                {fetchDivStatus==="parcial"&&divHistInfo&&(
+                  <div style={{fontSize:11,color:C.yellow}}>● Histórico parcial ({divHistInfo.anos.length} ano(s)) — verifique no Status Invest</div>
+                )}
+                {fetchDivStatus==="error"&&(
+                  <div style={{fontSize:11,color:C.muted}}>
+                    ● Histórico não disponível — informe o dividendo anual abaixo
+                    <div style={{marginTop:4}}><ExtLink href={`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}>Status Invest — Proventos</ExtLink></div>
+                  </div>
+                )}
+              </div>
+
+              {payoutCalc&&(
+                <div style={{borderTop:`1px solid ${C.borderSoft}`,paddingTop:8,marginTop:8}}>
+                  <div style={{fontSize:10,color:C.accent2,fontWeight:700}}>● Payout calculado automaticamente</div>
+                  <div style={{fontSize:14,fontWeight:700,color:parseFloat(payoutCalc)<=80?C.green:parseFloat(payoutCalc)<=100?C.yellow:C.red,marginTop:2,fontFamily:"var(--font-mono)"}}>
+                    {payoutCalc}%
+                    <span style={{fontSize:10,fontWeight:400,color:C.muted,marginLeft:6,fontFamily:"var(--font-sans)"}}>
+                      {parseFloat(payoutCalc)<=80?"sustentável":parseFloat(payoutCalc)<=100?"no limite":"insustentável"}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
-            <Btn onClick={()=>buscarCotacao(ticker)} variant="secondary" style={{width:"100%",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-              <Icon name="refresh" size={13}/> Atualizar cotação
+
+            <Btn onClick={()=>buscarTudo(ticker)} variant="secondary" style={{width:"100%",marginTop:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              <Icon name="refresh" size={13}/> Atualizar
             </Btn>
           </Card>
 
           <Card>
-            <SectionTitle>Dados Manuais <span style={{fontWeight:400,textTransform:"none",fontSize:10}}>(salvo por ativo)</span></SectionTitle>
+            <SectionTitle>Ajustes <span style={{fontWeight:400,fontSize:10,textTransform:"none"}}>(edite se necessário)</span></SectionTitle>
 
-            <Fld label="Dividendo anual por ação (R$)" hint="Soma dos últimos 12 meses de proventos">
-              <div style={{marginBottom:5}}><ExtLink href={`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}>Status Invest — Proventos</ExtLink></div>
+            <Fld label={<>Dividendo anual / ação (R$) <AutoTag tipo={divHistInfo?"auto":"manual"}/></>}>
               <div style={{position:"relative"}}>
                 <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>R$</span>
-                <input className="op-input" type="number" value={divAnual} onChange={e=>{setDivAnual(e.target.value);setResult(null);}} placeholder="3.50" style={iS({paddingLeft:26})}/>
+                <input className="op-input" type="number" value={divAnual}
+                  onChange={e=>{setDivAnual(e.target.value);setResult(null);}}
+                  placeholder="3.50"
+                  style={iS({paddingLeft:26,border:`1px solid ${divHistInfo?C.green+"44":C.border}`,background:divHistInfo?C.green+"0A":C.input})}/>
               </div>
             </Fld>
 
-            <Fld label="DY médio últimos 3 anos (%)">
-              <div style={{marginBottom:5}}><ExtLink href={`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}>Status Invest — Proventos</ExtLink></div>
-              <div style={{position:"relative"}}>
-                <input className="op-input" type="number" value={dyMedio} onChange={e=>setDyMedio(e.target.value)} placeholder="6.5" style={iS({paddingRight:22})}/>
-                <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>%</span>
-              </div>
-            </Fld>
-
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <Fld label="ROE (%)">
-                <div style={{marginBottom:5}}><ExtLink href={`https://www.fundamentus.com.br/detalhes.php?papel=${ticker}`}>Fundamentus</ExtLink></div>
-                <div style={{position:"relative"}}>
-                  <input className="op-input" type="number" value={roe} onChange={e=>setRoe(e.target.value)} placeholder="18" style={iS({paddingRight:22})}/>
-                  <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>%</span>
-                </div>
-              </Fld>
-              <Fld label="Dívida/EBITDA">
-                <div style={{marginBottom:5}}><ExtLink href={`https://www.fundamentus.com.br/detalhes.php?papel=${ticker}`}>Fundamentus</ExtLink></div>
-                <input className="op-input" type="number" value={dividaEbitda} onChange={e=>setDividaEbitda(e.target.value)} placeholder="1.8" style={iS()}/>
-              </Fld>
-            </div>
-
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              <Fld label="Payout (%)">
-                <div style={{marginBottom:5}}><ExtLink href={`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}>Status Invest</ExtLink></div>
-                <div style={{position:"relative"}}>
-                  <input className="op-input" type="number" value={payout} onChange={e=>setPayout(e.target.value)} placeholder="65" style={iS({paddingRight:22})}/>
-                  <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>%</span>
-                </div>
-              </Fld>
-              <Fld label="Var. lucro a/a (%)">
-                <div style={{marginBottom:5}}><ExtLink href={`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}>Status Invest</ExtLink></div>
-                <div style={{position:"relative"}}>
-                  <input className="op-input" type="number" value={epsVariacao} onChange={e=>setEpsVariacao(e.target.value)} placeholder="12" style={iS({paddingRight:22})}/>
-                  <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>%</span>
-                </div>
-              </Fld>
-            </div>
-
-            <Fld label="Setor">
-              <input className="op-input" value={setor} onChange={e=>setSetor(e.target.value)} placeholder="ex: petróleo, banco, saneamento" style={iS()}/>
-            </Fld>
-
-            <Btn onClick={salvarAtivo} variant="secondary" style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-              <Icon name="save" size={13}/> Salvar dados de {ticker}
-            </Btn>
-          </Card>
-
-          <Card>
-            <SectionTitle>Configuração do Preço Teto</SectionTitle>
-            <Fld label="Yield mínimo desejado (%)" hint="Barsi usa 6% — mais conservador = preço teto menor">
+            <Fld label="Yield mínimo desejado (%)" hint="Barsi usa 6% — mais conservador = teto menor">
               <div style={{position:"relative"}}>
                 <input className="op-input" type="number" value={yieldMin} onChange={e=>{setYieldMin(e.target.value);setResult(null);}}
                   placeholder="6" style={iS({paddingRight:22,border:`1px solid ${C.accent}44`,background:C.accent+"0D"})}/>
                 <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",color:C.accent,fontSize:12}}>%</span>
               </div>
             </Fld>
+
             {precoTetoEstimado&&(
-              <div style={{background:C.input,borderRadius:10,padding:11,fontSize:12,color:C.muted,border:`1px solid ${C.borderSoft}`}}>
-                Preço teto estimado: <span style={{color:C.accent,fontWeight:700,fontFamily:"var(--font-mono)"}}>R$ {precoTetoEstimado}</span>
-                {cotacao&&<span style={{color:parseFloat(cotacao)<parseFloat(precoTetoEstimado)?C.green:C.red,marginLeft:8,fontWeight:600}}>
-                  {parseFloat(cotacao)<parseFloat(precoTetoEstimado)?"✓ abaixo do teto":"✗ acima do teto"}
-                </span>}
+              <div style={{background:C.accent+"0D",borderRadius:10,padding:11,border:`1px solid ${C.borderSoft}`}}>
+                <div style={{fontSize:10,color:C.muted}}>Preço teto calculado</div>
+                <div style={{fontSize:20,fontWeight:800,color:C.accent,fontFamily:"var(--font-mono)"}}>R$ {precoTetoEstimado}</div>
+                {cotacao&&(
+                  <div style={{fontSize:11,marginTop:2,color:parseFloat(cotacao)<parseFloat(precoTetoEstimado)?C.green:C.red,fontWeight:600}}>
+                    {parseFloat(cotacao)<parseFloat(precoTetoEstimado)
+                      ?`${(((parseFloat(precoTetoEstimado)-parseFloat(cotacao))/parseFloat(precoTetoEstimado))*100).toFixed(0)}% abaixo do teto`
+                      :`${(((parseFloat(cotacao)-parseFloat(precoTetoEstimado))/parseFloat(precoTetoEstimado))*100).toFixed(0)}% acima do teto`}
+                  </div>
+                )}
               </div>
             )}
+          </Card>
+
+          <Card style={{border:`1px solid ${C.borderSoft}`}}>
+            <SectionTitle>2 campos manuais</SectionTitle>
+            <div style={{fontSize:11,color:C.muted,marginBottom:10,lineHeight:1.5}}>
+              Apenas esses dois precisam ser consultados manualmente. Salve uma vez por ativo.
+            </div>
+
+            <div style={{marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.6px",fontWeight:600}}>ROE (%)</div>
+                <ExtLink href={`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}>Status Invest</ExtLink>
+              </div>
+              <div style={{position:"relative"}}>
+                <input className="op-input" type="number" value={roe} onChange={e=>{setRoe(e.target.value);setResult(null);}}
+                  placeholder="Acima de 10% é bom" style={iS({paddingRight:22})}/>
+                <span style={{position:"absolute",right:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>%</span>
+              </div>
+              {roe&&(
+                <div style={{fontSize:10,marginTop:4,color:parseFloat(roe)>=10?C.green:C.red,display:"flex",alignItems:"center",gap:4}}>
+                  <Icon name={parseFloat(roe)>=10?"check":"x"} size={11}/> {parseFloat(roe)>=15?"Excelente":parseFloat(roe)>=10?"Bom":"Abaixo do esperado"}
+                </div>
+              )}
+            </div>
+
+            <div style={{marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.6px",fontWeight:600}}>Dívida líq./EBITDA</div>
+                <ExtLink href={`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}>Status Invest</ExtLink>
+              </div>
+              <input className="op-input" type="number" value={dividaEbitda} onChange={e=>{setDividaEbitda(e.target.value);setResult(null);}}
+                placeholder="Abaixo de 2,5 é saudável" style={iS()}/>
+              {dividaEbitda&&(
+                <div style={{fontSize:10,marginTop:4,color:parseFloat(dividaEbitda)<=2?C.green:parseFloat(dividaEbitda)<=2.5?C.yellow:C.red,display:"flex",alignItems:"center",gap:4}}>
+                  <Icon name={parseFloat(dividaEbitda)<=2.5?"check":"x"} size={11}/> {parseFloat(dividaEbitda)<=2?"Confortável":parseFloat(dividaEbitda)<=2.5?"Aceitável":"Elevado"}
+                </div>
+              )}
+            </div>
+
+            <Btn onClick={salvarAtivo} variant="secondary" style={{width:"100%",fontSize:12,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              <Icon name="save" size={13}/> Salvar dados de {ticker}
+            </Btn>
           </Card>
 
           <Btn onClick={calcular} style={{width:"100%"}} variant="primary">Analisar →</Btn>
@@ -1393,81 +1494,85 @@ function TabPrecoTeto(){
           {/* Checklist */}
           <Card>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-              <SectionTitle>Checklist de Qualidade</SectionTitle>
-              <div style={{display:"flex",gap:8}}>
-                <ExtLink href={`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}>Status Invest</ExtLink>
-                <ExtLink href={`https://www.fundamentus.com.br/detalhes.php?papel=${ticker}`}>Fundamentus</ExtLink>
-              </div>
+              <SectionTitle>Checklist de Qualidade — 6 critérios</SectionTitle>
+              <ExtLink href={`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}>Status Invest</ExtLink>
             </div>
 
-            {checklistPorCat.map(({cat,items})=>(
-              <div key={cat} style={{marginBottom:16}}>
-                <div style={{fontSize:11,fontWeight:700,color:C.accent,marginBottom:8,
-                             paddingBottom:4,borderBottom:`1px solid ${C.borderSoft}`}}>{cat}</div>
-                {items.map(item=>{
-                  const resp=respostas[item.id];
-                  const isExpanded=expandedDica===item.id;
-                  return(
-                    <div key={item.id} style={{
-                      borderRadius:10,marginBottom:6,
-                      background:resp===true?C.green+"0A":resp===false?C.red+"0A":C.input,
-                      border:`1px solid ${resp===true?C.green+"33":resp===false?C.red+"33":C.borderSoft}`
-                    }}>
-                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 11px"}}>
-                        <div style={{flex:1,marginRight:10}}>
-                          <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                            <span style={{fontSize:12,color:C.text,lineHeight:1.4}}>{item.label}</span>
-                            <span style={{fontSize:9,color:C.muted,background:C.card,borderRadius:10,padding:"1px 6px",whiteSpace:"nowrap"}}>
-                              peso {item.peso}
-                            </span>
-                          </div>
-                        </div>
-                        <div style={{display:"flex",gap:6,flexShrink:0,alignItems:"center"}}>
-                          <button className="op-btn" onClick={()=>setExpandedDica(isExpanded?null:item.id)} style={{
-                            padding:"4px 9px",borderRadius:7,border:`1px solid ${C.border}`,
-                            background:"transparent",color:C.muted,cursor:"pointer",fontSize:11
-                          }} title="Ver dica e fonte">
-                            {isExpanded?"▲":"▼"}
-                          </button>
-                          <button className="op-btn" onClick={()=>setResposta(item.id,true)} style={{
-                            padding:"4px 12px",borderRadius:7,border:`1px solid ${resp===true?C.green:C.border}`,
-                            background:resp===true?C.green+"22":"transparent",color:resp===true?C.green:C.muted,
-                            cursor:"pointer",fontSize:12,fontWeight:600
-                          }}>SIM</button>
-                          <button className="op-btn" onClick={()=>setResposta(item.id,false)} style={{
-                            padding:"4px 12px",borderRadius:7,border:`1px solid ${resp===false?C.red:C.border}`,
-                            background:resp===false?C.red+"22":"transparent",color:resp===false?C.red:C.muted,
-                            cursor:"pointer",fontSize:12,fontWeight:600
-                          }}>NÃO</button>
-                        </div>
-                      </div>
+            {CHECKLIST.map(item=>{
+              const resp=respostas[item.id];
+              const isExp=expandedDica===item.id;
+              const fonte=item.fonte?item.fonte(ticker):null;
+              return(
+                <div key={item.id} style={{
+                  borderRadius:10,marginBottom:8,
+                  background:resp===true?C.green+"0A":resp===false?C.red+"0A":C.input,
+                  border:`1px solid ${resp===true?C.green+"44":resp===false?C.red+"44":C.borderSoft}`
+                }}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px"}}>
+                    <div style={{flexShrink:0,color:resp===true?C.green:resp===false?C.red:C.muted}}>
+                      <Icon name={resp===true?"check":resp===false?"x":"circle"} size={16}/>
+                    </div>
 
-                      {isExpanded&&(
-                        <div style={{padding:"9px 11px 11px",borderTop:`1px solid ${C.borderSoft}`,borderRadius:"0 0 10px 10px"}}>
-                          <div style={{display:"flex",gap:6,fontSize:11,color:C.muted,marginBottom:6,lineHeight:1.5}}>
-                            <Icon name="info" size={13} style={{flexShrink:0,marginTop:1}}/> {item.dica}
-                          </div>
-                          {item.fonte?(
-                            <div style={{display:"flex",alignItems:"center",gap:6}}>
-                              <span style={{fontSize:10,color:C.muted}}>Onde ver:</span>
-                              <ExtLink href={item.fonte.url}>{item.fonte.label}</ExtLink>
-                            </div>
-                          ):(
-                            <div style={{fontSize:10,color:C.muted}}>Avaliação subjetiva — use seu conhecimento do setor e da empresa</div>
-                          )}
-                          {resp===false&&(
-                            <div style={{marginTop:6,fontSize:11,color:C.red,background:C.red+"11",
-                                         borderRadius:7,padding:"5px 9px"}}>
-                              {item.ressalva}
-                            </div>
-                          )}
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                        <span style={{fontSize:12,color:C.text,lineHeight:1.4,fontWeight:500}}>{item.label}</span>
+                        <span style={{fontSize:9,background:C.card,borderRadius:10,padding:"1px 6px",color:C.muted}}>peso {item.peso}</span>
+                        {item.auto&&<AutoTag tipo={item.id==="payoutOk"?"calc":"auto"}/>}
+                      </div>
+                      {item.id==="payoutOk"&&payoutCalc&&(
+                        <div style={{fontSize:10,color:parseFloat(payoutCalc)<=80?C.green:C.red,marginTop:2}}>
+                          Payout calculado: {payoutCalc}% → resposta automática: {parseFloat(payoutCalc)<=80?"SIM":"NÃO"}
+                        </div>
+                      )}
+                      {item.id==="setorPer"&&setorAuto&&(
+                        <div style={{fontSize:10,color:isCiclico(setorAuto)?C.yellow:C.green,marginTop:2}}>
+                          Setor detectado: {setorAuto} → {isCiclico(setorAuto)?"cíclico — resposta automática: NÃO":"perene — resposta automática: SIM"}
                         </div>
                       )}
                     </div>
-                  );
-                })}
+
+                    <div style={{display:"flex",gap:6,flexShrink:0,alignItems:"center"}}>
+                      <button className="op-btn" onClick={()=>setExpandedDica(isExp?null:item.id)} style={{
+                        padding:"4px 9px",borderRadius:7,border:`1px solid ${isExp?C.accent:C.border}`,
+                        background:isExp?C.accent+"14":"transparent",color:isExp?C.accent:C.muted,
+                        cursor:"pointer",fontSize:11
+                      }}>{isExp?"▲":"▼"}</button>
+                      {[{l:"SIM",v:true,ac:C.green},{l:"NÃO",v:false,ac:C.red}].map(({l,v,ac})=>(
+                        <button key={l} className="op-btn" onClick={()=>setResposta(item.id,v)} style={{
+                          padding:"4px 12px",borderRadius:7,
+                          border:`1px solid ${resp===v?ac:C.border}`,
+                          background:resp===v?ac+"22":"transparent",
+                          color:resp===v?ac:C.muted,
+                          cursor:"pointer",fontSize:12,fontWeight:600
+                        }}>{l}</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {isExp&&(
+                    <div style={{padding:"9px 12px 11px",borderTop:`1px solid ${C.borderSoft}`,borderRadius:"0 0 10px 10px"}}>
+                      <div style={{display:"flex",gap:6,fontSize:11,color:C.muted,marginBottom:6,lineHeight:1.5}}>
+                        <Icon name="info" size={13} style={{flexShrink:0,marginTop:1}}/> {item.dica}
+                      </div>
+                      {fonte
+                        ?<div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:10,color:C.muted}}>Onde ver:</span><ExtLink href={fonte.url}>{fonte.label}</ExtLink></div>
+                        :<div style={{fontSize:10,color:C.muted}}>Avaliação subjetiva</div>
+                      }
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <div style={{marginTop:8,padding:"9px 11px",background:C.input,borderRadius:9,border:`1px solid ${C.borderSoft}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
+                <span style={{fontSize:11,color:C.muted}}>Progresso</span>
+                <span style={{fontSize:11,color:C.muted}}>{Object.keys(respostas).length}/{CHECKLIST.length} respondidos</span>
               </div>
-            ))}
+              <div style={{background:C.border,borderRadius:20,height:5,overflow:"hidden"}}>
+                <div style={{width:`${Object.keys(respostas).length/CHECKLIST.length*100}%`,height:"100%",background:C.accent,borderRadius:20,transition:"width 0.3s"}}/>
+              </div>
+            </div>
           </Card>
 
           {/* Resultado */}
@@ -1492,7 +1597,7 @@ function TabPrecoTeto(){
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
                 <Metric label="Preço Teto" value={`R$ ${result.precoTeto.toFixed(2)}`} sub={`Div ÷ ${(result.ym*100).toFixed(0)}%`} hi={C.accent}/>
                 <Metric label="Cotação Atual" value={`R$ ${result.preco.toFixed(2)}`} hi={result.vereditoColor}/>
-                <Metric label="Margem de Segurança" value={`${result.margemSeguranca.toFixed(1)}%`}
+                <Metric label="Margem Segurança" value={`${result.margemSeguranca.toFixed(1)}%`}
                   sub={result.margemSeguranca>=20?"Boa":result.margemSeguranca>=0?"Baixa":"Acima do teto"}
                   hi={result.margemSeguranca>=20?C.green:result.margemSeguranca>=0?C.yellow:C.red}/>
                 <Metric label="DY Real" value={`${result.dyReal.toFixed(2)}%`} sub="ao preço atual"
@@ -1506,14 +1611,14 @@ function TabPrecoTeto(){
                     <div style={{fontSize:34,fontWeight:800,color:result.notaColor,fontFamily:"var(--font-mono)"}}>{result.nota.toFixed(0)}%</div>
                     <div style={{flex:1}}>
                       <div style={{fontSize:14,fontWeight:600,color:result.notaColor,marginBottom:4}}>{result.notaLabel}</div>
-                      <div style={{fontSize:12,color:C.muted,marginBottom:6}}>{result.pesoObtido}/{result.pesoTotal} pontos · {result.respondidos}/{checklist.length} critérios respondidos</div>
+                      <div style={{fontSize:12,color:C.muted,marginBottom:6}}>{result.pesoObtido}/{result.pesoTotal} pontos · {result.respondidos}/{CHECKLIST.length} respondidos</div>
                       <div style={{background:C.input,borderRadius:20,height:8,overflow:"hidden"}}>
                         <div style={{width:`${result.nota}%`,height:"100%",background:result.nota>=80?C.green:result.nota>=60?C.yellow:C.red,borderRadius:20,transition:"width 0.5s"}}/>
                       </div>
                     </div>
-                    {result.respondidos<checklist.length&&(
+                    {result.respondidos<CHECKLIST.length&&(
                       <div style={{fontSize:11,color:C.yellow,display:"flex",alignItems:"center",gap:5,flexShrink:0}}>
-                        <Icon name="alert" size={13}/> {checklist.length-result.respondidos} critério(s) sem resposta
+                        <Icon name="alert" size={13}/> {CHECKLIST.length-result.respondidos} sem resposta
                       </div>
                     )}
                   </div>
@@ -1537,8 +1642,13 @@ function TabPrecoTeto(){
               </Card>
             </>
           ):(
-            <EmptyState icon="target" title="Preencha o checklist e clique em Analisar"
-              desc="Cotação, DY e P/L puxados automaticamente · Dados manuais salvos por ativo · Links diretos para cada fonte de dados"/>
+            <EmptyState icon="target" title="Digite o ticker e o sistema preenche automaticamente" desc={
+              <span style={{display:"block",lineHeight:1.9,textAlign:"left"}}>
+                <span style={{display:"block"}}><span style={{color:C.green}}>●</span> Cotação, DY, EPS, dividendo anual, DY médio 3 anos — automático</span>
+                <span style={{display:"block"}}><span style={{color:C.accent2}}>●</span> Payout e setor — calculados automaticamente</span>
+                <span style={{display:"block"}}><span style={{color:C.muted}}>●</span> Só ROE e Dívida/EBITDA precisam ser consultados</span>
+              </span>
+            }/>
           )}
         </div>
       </div>
