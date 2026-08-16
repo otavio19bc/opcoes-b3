@@ -641,9 +641,13 @@ function calcPosicao(p){
   const noc=p.tipo==="call"?p.precoEntrada*p.qtd:p.strike*p.qtd;
   const recompra=(p.recompra===""||p.recompra==null)?0:parseFloat(p.recompra);
   const corretagem=parseFloat(p.corretagem)||0;
-  const resultado=(p.premio-recompra)*p.qtd-corretagem;
+  const precoSaida=(p.precoSaida===""||p.precoSaida==null)?null:parseFloat(p.precoSaida);
+  // Lucro/prejuízo na venda antecipada do ativo (call: base = preço de entrada; put: base = strike, preço de exercício)
+  const lucroAtivo=precoSaida!=null?(p.tipo==="call"?(precoSaida-p.precoEntrada):(precoSaida-p.strike))*p.qtd:0;
+  const resultadoOpcao=(p.premio-recompra)*p.qtd-corretagem;
+  const resultado=resultadoOpcao+lucroAtivo;
   const retorno=noc?(resultado/noc)*100:0;
-  return{dias,alerta,noc,resultado,retorno};
+  return{dias,alerta,noc,resultado,resultadoOpcao,lucroAtivo,retorno};
 }
 
 function StatusSelect({value,onChange}){
@@ -694,7 +698,7 @@ function TabPosicoes(){
       qtd:parseInt(form.qtd)||0,dataVenc:form.dataVenc,
       precoEntrada:parseFloat(form.precoEntrada),
       dataLancamento:form.dataLancamento||hojeISO(),
-      dataEncerramento:"",recompra:"",
+      dataEncerramento:"",recompra:"",precoSaida:"",
       corretagem:parseFloat(form.corretagem)||0,
       status:"Aberta",observacoes:form.observacoes
     };
@@ -723,6 +727,7 @@ function TabPosicoes(){
       qtd:String(p.qtd),dataVenc:p.dataVenc,precoEntrada:String(p.precoEntrada),
       dataLancamento:p.dataLancamento||"",dataEncerramento:p.dataEncerramento||"",
       recompra:p.recompra!==""&&p.recompra!=null?String(p.recompra):"",
+      precoSaida:p.precoSaida!==""&&p.precoSaida!=null?String(p.precoSaida):"",
       corretagem:p.corretagem!=null?String(p.corretagem):"0",
       status:p.status||"Aberta",
       observacoes:p.observacoes||""
@@ -747,6 +752,7 @@ function TabPosicoes(){
         dataLancamento:editForm.dataLancamento,
         dataEncerramento,
         recompra:editForm.recompra===""?"":parseFloat(editForm.recompra),
+        precoSaida:editForm.precoSaida===""?"":parseFloat(editForm.precoSaida),
         corretagem:parseFloat(editForm.corretagem)||0,
         status,
         observacoes:editForm.observacoes
@@ -828,7 +834,7 @@ function TabPosicoes(){
       ):(
         <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
           {posicoes.map(p=>{
-            const{dias,alerta,noc,resultado,retorno}=calcPosicao(p);
+            const{dias,alerta,noc,resultado,lucroAtivo,retorno}=calcPosicao(p);
             const editando=editandoId===p.id;
             return(
               <Card key={p.id} style={{border:`1px solid ${alerta?C.red+"44":C.borderSoft}`}}>
@@ -865,6 +871,7 @@ function TabPosicoes(){
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RESULTADO LÍQ.</div>
                       <div style={{fontSize:13,fontWeight:600,color:resultado>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>R$ {resultado.toFixed(2)}</div>
+                      {lucroAtivo!==0&&<div style={{fontSize:8.5,color:C.muted,fontFamily:"var(--font-mono)"}}>ativo: {lucroAtivo>=0?"+":""}{lucroAtivo.toFixed(2)}</div>}
                     </div>
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RETORNO</div>
@@ -914,8 +921,11 @@ function TabPosicoes(){
                       <Fld label="Vencimento"><input className="op-input" type="date" value={editForm.dataVenc} onChange={e=>setEF("dataVenc",e.target.value)} style={iS()}/></Fld>
                       <Fld label="Data de lançamento"><input className="op-input" type="date" value={editForm.dataLancamento} onChange={e=>setEF("dataLancamento",e.target.value)} style={iS()}/></Fld>
                       <Fld label="Data de encerramento"><input className="op-input" type="date" value={editForm.dataEncerramento} onChange={e=>setEF("dataEncerramento",e.target.value)} style={iS()}/></Fld>
-                      <Fld label="Recompra/ação (R$)" hint="Vazio = expirou pó">
+                      <Fld label="Recompra da opção (R$)" hint="Vazio = expirou pó">
                         <input className="op-input" type="number" value={editForm.recompra} onChange={e=>setEF("recompra",e.target.value)} placeholder="vazio = pó" style={iS()}/>
+                      </Fld>
+                      <Fld label="Preço de saída do ativo (R$)" hint="Só se vendeu a ação antes do vencimento">
+                        <input className="op-input" type="number" value={editForm.precoSaida} onChange={e=>setEF("precoSaida",e.target.value)} placeholder="saída antecipada" style={iS()}/>
                       </Fld>
                       <Fld label="Corretagem (R$)"><input className="op-input" type="number" value={editForm.corretagem} onChange={e=>setEF("corretagem",e.target.value)} style={iS()}/></Fld>
                       <div style={{gridColumn:"span 2"}}>
@@ -1139,6 +1149,7 @@ function TabPerformance(){
   const [ano,setAno]=useState(new Date().getFullYear());
   const [meta,setMeta]=useState("2000");
   const [capital,setCapital]=useState("50000");
+  const [selic,setSelic]=useState("14");
   const [loaded,setLoaded]=useState(false);
 
   useEffect(()=>{
@@ -1150,21 +1161,23 @@ function TabPerformance(){
       const cfg=JSON.parse(localStorage.getItem("op_performance_cfg")||"{}");
       if(cfg.meta!=null) setMeta(cfg.meta);
       if(cfg.capital!=null) setCapital(cfg.capital);
+      if(cfg.selic!=null) setSelic(cfg.selic);
     }catch{}
     setLoaded(true);
   },[]);
 
   useEffect(()=>{
     if(!loaded) return;
-    localStorage.setItem("op_performance_cfg",JSON.stringify({meta,capital}));
-  },[meta,capital,loaded]);
+    localStorage.setItem("op_performance_cfg",JSON.stringify({meta,capital,selic}));
+  },[meta,capital,selic,loaded]);
 
   const fechadas=posicoes.filter(p=>(p.status==="Encerrada"||p.status==="Exercida")&&p.dataEncerramento);
   const fechadasAno=fechadas.filter(p=>new Date(p.dataEncerramento).getFullYear()===ano);
 
   const metaV=parseFloat(meta)||0;
   const capitalV=parseFloat(capital)||0;
-  const selicMesPct=(Math.pow(1.14,1/12)-1)*100;
+  const selicAnualV=parseFloat(selic)||0;
+  const selicMesPct=(Math.pow(1+selicAnualV/100,1/12)-1)*100;
 
   const data=MESES.map((m,i)=>{
     const doMes=fechadasAno.filter(p=>new Date(p.dataEncerramento).getMonth()===i);
@@ -1173,7 +1186,6 @@ function TabPerformance(){
   });
 
   const totalRes=data.reduce((a,d)=>a+d.resultado,0);
-  const totalSelic=data.reduce((a,d)=>a+d.selicMes,0);
   const mesesComDados=data.filter(d=>d.hasData);
   const acertos=mesesComDados.filter(d=>d.resultado>=metaV).length;
   const retornoCapital=capitalV?(totalRes/capitalV)*100:0;
@@ -1219,6 +1231,10 @@ function TabPerformance(){
             <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.6px",fontWeight:600,marginBottom:3}}>Capital total (R$)</div>
             <input className="op-input" type="number" value={capital} onChange={e=>setCapital(e.target.value)} style={iS({width:130})}/>
           </div>
+          <div>
+            <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.6px",fontWeight:600,marginBottom:3}}>Selic anual (%)</div>
+            <input className="op-input" type="number" value={selic} onChange={e=>setSelic(e.target.value)} style={iS({width:90})}/>
+          </div>
         </div>
       </div>
 
@@ -1226,7 +1242,7 @@ function TabPerformance(){
       <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:16}}>
         <Metric label="Resultado do Ano" value={`R$ ${totalRes.toFixed(2)}`} hi={totalRes>0?C.green:totalRes<0?C.red:C.muted}/>
         <Metric label="Retorno s/ Capital" value={`${retornoCapital.toFixed(2)}%`} hi={retornoCapital>0?C.green:retornoCapital<0?C.red:C.muted}/>
-        <Metric label="Selic Estimada" value={`${totalSelic.toFixed(2)}%`} sub="base 14% a.a." hi={C.muted}/>
+        <Metric label="Selic Atual (a.a.)" value={`${selicAnualV.toFixed(2)}%`} sub="taxa vigente, não acumulada" hi={C.muted}/>
         <Metric label="Meses c/ Meta Batida" value={`${acertos}/${mesesComDados.length}`}
           hi={acertos===mesesComDados.length&&acertos>0?C.green:acertos>0?C.yellow:C.muted}/>
         <Metric label="Média Mensal" value={mesesComDados.length>0?`R$ ${mediaMensal.toFixed(2)}`:"—"}
@@ -1331,7 +1347,7 @@ function TabPerformance(){
               <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:700,color:C.text}}>TOTAL</td>
               <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:700,color:totalRes>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>R$ {totalRes.toFixed(2)}</td>
               <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted}}>—</td>
-              <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted,fontFamily:"var(--font-mono)"}}>{totalSelic.toFixed(2)}%</td>
+              <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted,fontFamily:"var(--font-mono)"}}>{selicAnualV.toFixed(2)}%</td>
               <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted}}>
                 {acertos}/{mesesComDados.length}
               </td>
