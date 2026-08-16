@@ -1,5 +1,11 @@
 "use client";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { createClient } from "@/lib/supabase/client";
+import {
+  listPosicoes, insertPosicao, updatePosicao, deletePosicao,
+  getConfig, saveConfig,
+  getAtivoSalvo, saveAtivoSalvo,
+} from "@/lib/db";
 
 // ════════════════════════════════════════════════════════════════════
 // MATH
@@ -675,24 +681,23 @@ function TabPosicoes(){
   const [editForm,setEditForm]=useState(null);
 
   useEffect(()=>{
-    try{
-      const saved=JSON.parse(localStorage.getItem("op_posicoes")||"[]");
-      setPosicoes(saved);
-    }catch{}
-    setLoaded(true);
+    (async()=>{
+      try{
+        const rows=await listPosicoes();
+        setPosicoes(rows);
+      }catch{
+        alert("Não foi possível carregar suas posições do servidor.");
+      }
+      setLoaded(true);
+    })();
   },[]);
-
-  useEffect(()=>{
-    if(!loaded) return;
-    localStorage.setItem("op_posicoes",JSON.stringify(posicoes));
-  },[posicoes,loaded]);
 
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
-  const adicionar=()=>{
+  const adicionar=async()=>{
     if(!form.ativo||!form.strike||!form.premio||!form.precoEntrada){alert("Preencha ativo, strike, prêmio e preço de entrada.");return;}
     const nova={
-      id:Date.now(),ativo:form.ativo.toUpperCase(),tipo:form.tipo,
+      ativo:form.ativo.toUpperCase(),tipo:form.tipo,
       codigoOpcao:form.codigoOpcao.toUpperCase(),
       strike:parseFloat(form.strike),premio:parseFloat(form.premio),
       qtd:parseInt(form.qtd)||0,dataVenc:form.dataVenc,
@@ -702,22 +707,40 @@ function TabPosicoes(){
       corretagem:parseFloat(form.corretagem)||0,
       status:"Aberta",observacoes:form.observacoes
     };
-    setPosicoes(p=>[...p,nova]);
-    setForm(blankForm());
-    setShowForm(false);
+    try{
+      const criada=await insertPosicao(nova);
+      setPosicoes(p=>[...p,criada]);
+      setForm(blankForm());
+      setShowForm(false);
+    }catch(e){
+      alert("Erro ao salvar posição: "+e.message);
+    }
   };
 
-  const remover=(id)=>{
+  const remover=async(id)=>{
     if(editandoId===id){setEditandoId(null);setEditForm(null);}
+    const anterior=posicoes;
     setPosicoes(p=>p.filter(x=>x.id!==id));
+    try{
+      await deletePosicao(id);
+    }catch(e){
+      setPosicoes(anterior);
+      alert("Erro ao remover posição: "+e.message);
+    }
   };
 
-  const atualizarStatus=(id,status)=>{
-    setPosicoes(list=>list.map(p=>{
-      if(p.id!==id) return p;
-      const dataEncerramento=(status!=="Aberta"&&!p.dataEncerramento)?hojeISO():(status==="Aberta"?"":p.dataEncerramento);
-      return{...p,status,dataEncerramento};
-    }));
+  const atualizarStatus=async(id,status)=>{
+    const alvo=posicoes.find(p=>p.id===id);
+    if(!alvo) return;
+    const dataEncerramento=(status!=="Aberta"&&!alvo.dataEncerramento)?hojeISO():(status==="Aberta"?"":alvo.dataEncerramento);
+    const atualizada={...alvo,status,dataEncerramento};
+    setPosicoes(list=>list.map(p=>p.id===id?atualizada:p));
+    try{
+      await updatePosicao(id,atualizada);
+    }catch(e){
+      setPosicoes(list=>list.map(p=>p.id===id?alvo:p));
+      alert("Erro ao atualizar status: "+e.message);
+    }
   };
 
   const iniciarEdicao=(p)=>{
@@ -736,29 +759,35 @@ function TabPosicoes(){
   const cancelarEdicao=()=>{setEditandoId(null);setEditForm(null);};
   const setEF=(k,v)=>setEditForm(f=>({...f,[k]:v}));
 
-  const salvarEdicao=(id)=>{
-    setPosicoes(list=>list.map(p=>{
-      if(p.id!==id) return p;
-      const status=editForm.status;
-      const dataEncerramento=status==="Aberta"?"":(editForm.dataEncerramento||hojeISO());
-      return{
-        ...p,
-        codigoOpcao:editForm.codigoOpcao.toUpperCase(),
-        strike:parseFloat(editForm.strike)||p.strike,
-        premio:parseFloat(editForm.premio)||p.premio,
-        qtd:parseInt(editForm.qtd)||p.qtd,
-        dataVenc:editForm.dataVenc,
-        precoEntrada:parseFloat(editForm.precoEntrada)||p.precoEntrada,
-        dataLancamento:editForm.dataLancamento,
-        dataEncerramento,
-        recompra:editForm.recompra===""?"":parseFloat(editForm.recompra),
-        precoSaida:editForm.precoSaida===""?"":parseFloat(editForm.precoSaida),
-        corretagem:parseFloat(editForm.corretagem)||0,
-        status,
-        observacoes:editForm.observacoes
-      };
-    }));
+  const salvarEdicao=async(id)=>{
+    const alvo=posicoes.find(p=>p.id===id);
+    if(!alvo) return;
+    const status=editForm.status;
+    const dataEncerramento=status==="Aberta"?"":(editForm.dataEncerramento||hojeISO());
+    const atualizada={
+      ...alvo,
+      codigoOpcao:editForm.codigoOpcao.toUpperCase(),
+      strike:parseFloat(editForm.strike)||alvo.strike,
+      premio:parseFloat(editForm.premio)||alvo.premio,
+      qtd:parseInt(editForm.qtd)||alvo.qtd,
+      dataVenc:editForm.dataVenc,
+      precoEntrada:parseFloat(editForm.precoEntrada)||alvo.precoEntrada,
+      dataLancamento:editForm.dataLancamento,
+      dataEncerramento,
+      recompra:editForm.recompra===""?"":parseFloat(editForm.recompra),
+      precoSaida:editForm.precoSaida===""?"":parseFloat(editForm.precoSaida),
+      corretagem:parseFloat(editForm.corretagem)||0,
+      status,
+      observacoes:editForm.observacoes
+    };
+    setPosicoes(list=>list.map(p=>p.id===id?atualizada:p));
     setEditandoId(null);setEditForm(null);
+    try{
+      await updatePosicao(id,atualizada);
+    }catch(e){
+      setPosicoes(list=>list.map(p=>p.id===id?alvo:p));
+      alert("Erro ao salvar alterações: "+e.message);
+    }
   };
 
   const totalNocional=posicoes.reduce((acc,p)=>acc+calcPosicao(p).noc,0);
@@ -1151,24 +1180,37 @@ function TabPerformance(){
   const [capital,setCapital]=useState("50000");
   const [selic,setSelic]=useState("14");
   const [loaded,setLoaded]=useState(false);
+  const saveTimer=useRef(null);
 
   useEffect(()=>{
-    try{
-      const saved=JSON.parse(localStorage.getItem("op_posicoes")||"[]");
-      setPosicoes(saved);
-    }catch{}
-    try{
-      const cfg=JSON.parse(localStorage.getItem("op_performance_cfg")||"{}");
-      if(cfg.meta!=null) setMeta(cfg.meta);
-      if(cfg.capital!=null) setCapital(cfg.capital);
-      if(cfg.selic!=null) setSelic(cfg.selic);
-    }catch{}
-    setLoaded(true);
+    (async()=>{
+      try{
+        const rows=await listPosicoes();
+        setPosicoes(rows);
+      }catch{}
+      try{
+        const cfg=await getConfig();
+        if(cfg){
+          if(cfg.metaMensal!=null) setMeta(String(cfg.metaMensal));
+          if(cfg.capitalTotal!=null) setCapital(String(cfg.capitalTotal));
+          if(cfg.taxaSelic!=null) setSelic(String(cfg.taxaSelic));
+        }
+      }catch{}
+      setLoaded(true);
+    })();
   },[]);
 
   useEffect(()=>{
     if(!loaded) return;
-    localStorage.setItem("op_performance_cfg",JSON.stringify({meta,capital,selic}));
+    clearTimeout(saveTimer.current);
+    saveTimer.current=setTimeout(()=>{
+      saveConfig({
+        metaMensal:parseFloat(meta)||0,
+        capitalTotal:parseFloat(capital)||0,
+        taxaSelic:parseFloat(selic)||0,
+      }).catch(()=>{});
+    },700);
+    return()=>clearTimeout(saveTimer.current);
   },[meta,capital,selic,loaded]);
 
   const fechadas=posicoes.filter(p=>(p.status==="Encerrada"||p.status==="Exercida")&&p.dataEncerramento);
@@ -1594,22 +1636,28 @@ function TabPrecoTeto(){
   const [respostas,setRespostas]=useState({});
   const [expandedDica,setExpandedDica]=useState(null);
   const [result,setResult]=useState(null);
-  const [ativosDB,setAtivosDB]=useState({});
   const [dbLoaded,setDbLoaded]=useState(false);
   const [payoutCalc,setPayoutCalc]=useState("");
+  const saveTimer=useRef(null);
 
   useEffect(()=>{
-    try{
-      const saved=JSON.parse(localStorage.getItem("op_precoteto_db")||"{}");
-      setAtivosDB(saved);
-    }catch{}
-    setDbLoaded(true);
+    (async()=>{
+      try{
+        const cfg=await getConfig();
+        if(cfg&&cfg.yieldMin!=null) setYieldMin(String(cfg.yieldMin));
+      }catch{}
+      setDbLoaded(true);
+    })();
   },[]);
 
   useEffect(()=>{
     if(!dbLoaded) return;
-    localStorage.setItem("op_precoteto_db",JSON.stringify(ativosDB));
-  },[ativosDB,dbLoaded]);
+    clearTimeout(saveTimer.current);
+    saveTimer.current=setTimeout(()=>{
+      saveConfig({yieldMin:parseFloat(yieldMin)||0}).catch(()=>{});
+    },700);
+    return()=>clearTimeout(saveTimer.current);
+  },[yieldMin,dbLoaded]);
 
   // Payout automático
   useEffect(()=>{
@@ -1635,12 +1683,13 @@ function TabPrecoTeto(){
     }
   },[ticker]);
 
-  const carregarAtivo=useCallback((tick)=>{
-    const saved=ativosDB[tick];
+  const carregarAtivo=useCallback(async(tick)=>{
+    let saved=null;
+    try{ saved=await getAtivoSalvo(tick); }catch{}
     if(saved){
       setRoe(saved.roe||"");
       setDividaEbitda(saved.dividaEbitda||"");
-      setDividendo(saved.dividendo||"");
+      setDividendo(saved.dividendoAnual||"");
     }else{
       setRoe("");setDividaEbitda("");
     }
@@ -1652,7 +1701,7 @@ function TabPrecoTeto(){
       return merged;
     });
     setResult(null);
-  },[ativosDB]);
+  },[]);
 
   const buscarDados=useCallback(async(tick)=>{
     if(!tick||tick.length<4) return;
@@ -1684,8 +1733,12 @@ function TabPrecoTeto(){
     return()=>clearTimeout(t);
   },[ticker,dbLoaded]);
 
-  const salvar=()=>{
-    setAtivosDB(db=>({...db,[ticker]:{roe,dividaEbitda,dividendo,respostas}}));
+  const salvar=async()=>{
+    try{
+      await saveAtivoSalvo(ticker,{roe,dividaEbitda,dividendoAnual:dividendo,respostas});
+    }catch(e){
+      alert("Erro ao salvar dados do ativo: "+e.message);
+    }
   };
 
   const setResp=(id,val)=>{setRespostas(r=>({...r,[id]:val}));setResult(null);};
@@ -2066,7 +2119,8 @@ const TABS=[
 
 function LogoutButton(){
   const sair=async()=>{
-    await fetch("/api/logout",{method:"POST"});
+    const supabase=createClient();
+    await supabase.auth.signOut();
     window.location.href="/login";
   };
   return (

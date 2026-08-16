@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 const C = {
   bgGradient: "radial-gradient(ellipse 1200px 620px at 50% -12%, #161B2C 0%, #0B0E14 55%)",
@@ -8,6 +9,7 @@ const C = {
   border: "#262C39",
   borderSoft: "#1D2230",
   accent: "#5B8DEF",
+  green: "#34D399",
   red: "#F87171",
   text: "#EDEFF3",
   muted: "#8A94A6",
@@ -24,30 +26,39 @@ function ZapIcon({ size = 20 }) {
 }
 
 export default function LoginPage() {
+  const [modo, setModo] = useState("entrar"); // "entrar" | "cadastrar"
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const entrar = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     setError("");
+    setInfo("");
     setLoading(true);
+    const supabase = createClient();
     try {
-      const r = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      if (r.ok) {
+      if (modo === "entrar") {
+        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+        if (err) throw err;
         router.push("/");
         router.refresh();
       } else {
-        const d = await r.json().catch(() => ({}));
-        setError(d.error || "Senha incorreta.");
+        const { data, error: err } = await supabase.auth.signUp({ email, password });
+        if (err) throw err;
+        if (data.session) {
+          router.push("/");
+          router.refresh();
+        } else {
+          setInfo("Conta criada! Verifique seu e-mail para confirmar o cadastro antes de entrar.");
+          setModo("entrar");
+        }
       }
-    } catch {
-      setError("Erro de conexão. Tente novamente.");
+    } catch (err) {
+      setError(traduzErro(err.message));
     } finally {
       setLoading(false);
     }
@@ -67,18 +78,18 @@ export default function LoginPage() {
       }}
     >
       <form
-        onSubmit={entrar}
+        onSubmit={submit}
         style={{
           background: C.card,
           border: `1px solid ${C.borderSoft}`,
           borderRadius: 16,
           padding: 34,
           width: "100%",
-          maxWidth: 340,
+          maxWidth: 360,
           boxShadow: "0 1px 2px rgba(0,0,0,0.2), 0 16px 40px rgba(0,0,0,0.35)",
         }}
       >
-        <div style={{ textAlign: "center", marginBottom: 26 }}>
+        <div style={{ textAlign: "center", marginBottom: 22 }}>
           <div
             style={{
               width: 48,
@@ -97,67 +108,83 @@ export default function LoginPage() {
           </div>
           <div style={{ fontWeight: 700, fontSize: 17, letterSpacing: "-0.2px" }}>Opções B3</div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
-            Acesso restrito — versão beta
+            {modo === "entrar" ? "Entre com sua conta" : "Crie sua conta"}
           </div>
         </div>
-        <div style={{ marginBottom: 16 }}>
-          <div
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: C.muted, marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.6px", fontWeight: 600 }}>
+            E-mail
+          </div>
+          <input
+            type="email"
+            autoFocus
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="op-input"
             style={{
-              fontSize: 10,
-              color: C.muted,
-              marginBottom: 5,
-              textTransform: "uppercase",
-              letterSpacing: "0.6px",
-              fontWeight: 600,
+              width: "100%", background: C.input, border: `1px solid ${C.border}`, borderRadius: 9,
+              padding: "11px 13px", color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box",
             }}
-          >
-            Senha de acesso
+          />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: C.muted, marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.6px", fontWeight: 600 }}>
+            Senha
           </div>
           <input
             type="password"
-            autoFocus
+            required
+            minLength={6}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="op-input"
             style={{
-              width: "100%",
-              background: C.input,
-              border: `1px solid ${C.border}`,
-              borderRadius: 9,
-              padding: "11px 13px",
-              color: C.text,
-              fontSize: 14,
-              outline: "none",
-              boxSizing: "border-box",
+              width: "100%", background: C.input, border: `1px solid ${C.border}`, borderRadius: 9,
+              padding: "11px 13px", color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box",
             }}
           />
         </div>
-        {error && (
-          <div style={{ color: C.red, fontSize: 12, marginBottom: 14 }}>
-            {error}
-          </div>
-        )}
+
+        {error && <div style={{ color: C.red, fontSize: 12, marginBottom: 14 }}>{error}</div>}
+        {info && <div style={{ color: C.green, fontSize: 12, marginBottom: 14, lineHeight: 1.5 }}>{info}</div>}
+
         <button
           type="submit"
           disabled={loading}
           className="op-btn"
           style={{
-            width: "100%",
-            border: "none",
-            borderRadius: 9,
-            fontSize: 13.5,
-            fontWeight: 600,
-            cursor: loading ? "default" : "pointer",
-            padding: "11px 16px",
-            background: "linear-gradient(135deg, #5B8DEF 0%, #4C7FE0 100%)",
-            color: "#fff",
-            boxShadow: "0 2px 10px rgba(91,141,239,0.3)",
-            opacity: loading ? 0.7 : 1,
+            width: "100%", border: "none", borderRadius: 9, fontSize: 13.5, fontWeight: 600,
+            cursor: loading ? "default" : "pointer", padding: "11px 16px",
+            background: "linear-gradient(135deg, #5B8DEF 0%, #4C7FE0 100%)", color: "#fff",
+            boxShadow: "0 2px 10px rgba(91,141,239,0.3)", opacity: loading ? 0.7 : 1,
           }}
         >
-          {loading ? "Entrando..." : "Entrar"}
+          {loading ? "Aguarde..." : modo === "entrar" ? "Entrar" : "Criar conta"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => { setModo(modo === "entrar" ? "cadastrar" : "entrar"); setError(""); setInfo(""); }}
+          style={{
+            width: "100%", marginTop: 12, background: "transparent", border: "none",
+            color: C.muted, fontSize: 12, cursor: "pointer", textAlign: "center",
+          }}
+        >
+          {modo === "entrar" ? "Não tem conta? Cadastre-se" : "Já tem conta? Entrar"}
         </button>
       </form>
     </div>
   );
+}
+
+function traduzErro(msg) {
+  if (!msg) return "Erro desconhecido.";
+  if (msg.includes("Invalid login credentials")) return "E-mail ou senha incorretos.";
+  if (msg.includes("User already registered")) return "Já existe uma conta com esse e-mail.";
+  if (msg.includes("Password should be at least")) return "A senha precisa ter pelo menos 6 caracteres.";
+  if (msg.includes("Unable to validate email address")) return "E-mail inválido.";
+  return msg;
 }

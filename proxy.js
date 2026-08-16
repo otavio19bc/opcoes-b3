@@ -1,20 +1,29 @@
 import { NextResponse } from "next/server";
-import { COOKIE_NAME, expectedToken } from "@/lib/auth";
+import { createMiddlewareClient } from "@/lib/supabase/server";
 
 export async function proxy(request) {
-  const token = request.cookies.get(COOKIE_NAME)?.value;
-  const valid = token && token === (await expectedToken());
+  const { supabase, response } = createMiddlewareClient(request);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!valid) {
-    const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
+  const isLoginPage = request.nextUrl.pathname === "/login";
+
+  if (!user && !isLoginPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  if (user && isLoginPage) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+
+  return response;
 }
 
 export const config = {
-  matcher: [
-    "/((?!login|api/login|_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
