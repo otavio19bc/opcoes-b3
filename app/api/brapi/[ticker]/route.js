@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export async function GET(request, { params }) {
   const { ticker } = await params;
   const { searchParams } = new URL(request.url);
-  const wantDividends = searchParams.get("dividends") === "1";
+  const wantStats = searchParams.get("stats") === "1";
   const token = process.env.BRAPI_TOKEN;
 
   if (!token) {
@@ -13,15 +13,9 @@ export async function GET(request, { params }) {
     );
   }
 
-  const qs = new URLSearchParams({ token });
-  if (wantDividends) {
-    qs.set("range", "5y");
-    qs.set("interval", "1mo");
-    qs.set("dividends", "true");
+  const qs = new URLSearchParams({ token, range: "3mo", interval: "1d" });
+  if (wantStats) {
     qs.set("modules", "defaultKeyStatistics");
-  } else {
-    qs.set("range", "3mo");
-    qs.set("interval", "1d");
   }
 
   const brapiRes = await fetch(
@@ -36,7 +30,7 @@ export async function GET(request, { params }) {
 
   const price = result.regularMarketPrice ?? null;
 
-  if (!wantDividends) {
+  if (!wantStats) {
     const prices = (result.historicalDataPrice || [])
       .map((h) => h.close)
       .filter(Boolean);
@@ -44,15 +38,12 @@ export async function GET(request, { params }) {
   }
 
   const dks = result.defaultKeyStatistics || {};
-  const dividends = (result.dividendsData?.cashDividends || [])
-    .map((d) => ({ date: d.paymentDate || d.approvedOn, value: d.rate }))
-    .filter((d) => d.date && typeof d.value === "number");
 
   return NextResponse.json({
     price,
     dividendYield: typeof dks.dividendYield === "number" ? dks.dividendYield * 100 : null,
     pl: typeof dks.trailingPE === "number" ? dks.trailingPE : null,
     eps: typeof dks.trailingEps === "number" ? dks.trailingEps : null,
-    dividends,
+    vpa: typeof dks.bookValue === "number" ? dks.bookValue : null,
   });
 }
