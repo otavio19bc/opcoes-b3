@@ -1,8 +1,7 @@
 -- ════════════════════════════════════════════════════════════════════
 -- Opções B3 — schema do banco (rodar uma vez no SQL Editor do Supabase)
+-- Seguro rodar mais de uma vez (idempotente) se a query falhar no meio.
 -- ════════════════════════════════════════════════════════════════════
--- Garante a função gen_random_uuid() (normalmente já vem habilitada em
--- projetos novos do Supabase, mas não custa garantir).
 create extension if not exists pgcrypto;
 
 -- ── posições ────────────────────────────────────────────────────────
@@ -31,6 +30,7 @@ create index if not exists posicoes_user_id_idx on public.posicoes(user_id);
 
 alter table public.posicoes enable row level security;
 
+drop policy if exists "posicoes: usuário vê/edita só as próprias" on public.posicoes;
 create policy "posicoes: usuário vê/edita só as próprias"
   on public.posicoes
   for all
@@ -50,6 +50,7 @@ create table if not exists public.configuracoes (
 
 alter table public.configuracoes enable row level security;
 
+drop policy if exists "configuracoes: usuário vê/edita só a própria" on public.configuracoes;
 create policy "configuracoes: usuário vê/edita só a própria"
   on public.configuracoes
   for all
@@ -71,6 +72,7 @@ create table if not exists public.ativos_salvos (
 
 alter table public.ativos_salvos enable row level security;
 
+drop policy if exists "ativos_salvos: usuário vê/edita só os próprios" on public.ativos_salvos;
 create policy "ativos_salvos: usuário vê/edita só os próprios"
   on public.ativos_salvos
   for all
