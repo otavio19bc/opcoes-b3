@@ -149,6 +149,9 @@ function Icon({name,size=18,style={}}){
     case"clock":return<svg{...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
     case"star":return<svg{...p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>;
     case"shield":return<svg{...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
+    case"edit":return<svg{...p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
+    case"chevron-left":return<svg{...p}><polyline points="15 18 9 12 15 6"/></svg>;
+    case"chevron-right":return<svg{...p}><polyline points="9 18 15 12 9 6"/></svg>;
     default:return null;
   }
 }
@@ -619,13 +622,53 @@ function TabComparar(){
 }
 
 // ════════════════════════════════════════════════════════════════════
-// ABA 3 — POSIÇÕES ABERTAS
+// ABA — POSIÇÕES
 // ════════════════════════════════════════════════════════════════════
+const STATUS_OPTIONS=["Aberta","Encerrada","Exercida","Rolada"];
+const STATUS_COLORS={Aberta:C.accent,Encerrada:C.green,Exercida:C.orange,Rolada:C.accent2};
+
+function hojeISO(){return new Date().toISOString().split("T")[0];}
+
+function blankForm(){
+  return{ativo:"",tipo:"call",codigoOpcao:"",strike:"",premio:"",qtd:"100",
+    dataVenc:getNextExpiry(),precoEntrada:"",dataLancamento:hojeISO(),
+    corretagem:"",observacoes:""};
+}
+
+function calcPosicao(p){
+  const dias=diasAte(p.dataVenc);
+  const alerta=dias<=5&&p.status==="Aberta";
+  const noc=p.tipo==="call"?p.precoEntrada*p.qtd:p.strike*p.qtd;
+  const recompra=(p.recompra===""||p.recompra==null)?0:parseFloat(p.recompra);
+  const corretagem=parseFloat(p.corretagem)||0;
+  const resultado=(p.premio-recompra)*p.qtd-corretagem;
+  const retorno=noc?(resultado/noc)*100:0;
+  return{dias,alerta,noc,resultado,retorno};
+}
+
+function StatusSelect({value,onChange}){
+  const color=STATUS_COLORS[value]||C.muted;
+  const arrow=encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>`);
+  return(
+    <select value={value} onChange={e=>onChange(e.target.value)} style={{
+      backgroundColor:color+"1F",backgroundImage:`url("data:image/svg+xml,${arrow}")`,
+      backgroundRepeat:"no-repeat",backgroundPosition:"right 7px center",backgroundSize:"12px",
+      color,border:`1px solid ${color}55`,borderRadius:20,
+      fontSize:10,fontWeight:700,padding:"4px 24px 4px 10px",cursor:"pointer",
+      outline:"none",appearance:"none",WebkitAppearance:"none",fontFamily:"var(--font-sans)"
+    }}>
+      {STATUS_OPTIONS.map(s=><option key={s} value={s} style={{background:C.card,color:C.text}}>{s}</option>)}
+    </select>
+  );
+}
+
 function TabPosicoes(){
   const [posicoes,setPosicoes]=useState([]);
-  const [form,setForm]=useState({ativo:"",tipo:"call",strike:"",premio:"",qtd:"100",dataVenc:getNextExpiry(),precoEntrada:""});
+  const [form,setForm]=useState(blankForm());
   const [showForm,setShowForm]=useState(false);
   const [loaded,setLoaded]=useState(false);
+  const [editandoId,setEditandoId]=useState(null);
+  const [editForm,setEditForm]=useState(null);
 
   useEffect(()=>{
     try{
@@ -643,30 +686,104 @@ function TabPosicoes(){
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const adicionar=()=>{
-    if(!form.ativo||!form.strike||!form.premio||!form.precoEntrada){alert("Preencha todos os campos.");return;}
+    if(!form.ativo||!form.strike||!form.premio||!form.precoEntrada){alert("Preencha ativo, strike, prêmio e preço de entrada.");return;}
     const nova={
-      id:Date.now(), ativo:form.ativo.toUpperCase(), tipo:form.tipo,
-      strike:parseFloat(form.strike), premio:parseFloat(form.premio),
-      qtd:parseInt(form.qtd), dataVenc:form.dataVenc,
+      id:Date.now(),ativo:form.ativo.toUpperCase(),tipo:form.tipo,
+      codigoOpcao:form.codigoOpcao.toUpperCase(),
+      strike:parseFloat(form.strike),premio:parseFloat(form.premio),
+      qtd:parseInt(form.qtd)||0,dataVenc:form.dataVenc,
       precoEntrada:parseFloat(form.precoEntrada),
-      dataAbertura:new Date().toISOString().split("T")[0]
+      dataLancamento:form.dataLancamento||hojeISO(),
+      dataEncerramento:"",recompra:"",
+      corretagem:parseFloat(form.corretagem)||0,
+      status:"Aberta",observacoes:form.observacoes
     };
     setPosicoes(p=>[...p,nova]);
-    setForm({ativo:"",tipo:"call",strike:"",premio:"",qtd:"100",dataVenc:getNextExpiry(),precoEntrada:""});
+    setForm(blankForm());
     setShowForm(false);
   };
 
-  const remover=(id)=>setPosicoes(p=>p.filter(x=>x.id!==id));
+  const remover=(id)=>{
+    if(editandoId===id){setEditandoId(null);setEditForm(null);}
+    setPosicoes(p=>p.filter(x=>x.id!==id));
+  };
 
-  const totalNocional=posicoes.reduce((acc,p)=>acc+(p.tipo==="call"?p.precoEntrada*p.qtd:p.strike*p.qtd),0);
+  const atualizarStatus=(id,status)=>{
+    setPosicoes(list=>list.map(p=>{
+      if(p.id!==id) return p;
+      const dataEncerramento=(status!=="Aberta"&&!p.dataEncerramento)?hojeISO():(status==="Aberta"?"":p.dataEncerramento);
+      return{...p,status,dataEncerramento};
+    }));
+  };
+
+  const iniciarEdicao=(p)=>{
+    setEditandoId(p.id);
+    setEditForm({
+      codigoOpcao:p.codigoOpcao||"",strike:String(p.strike),premio:String(p.premio),
+      qtd:String(p.qtd),dataVenc:p.dataVenc,precoEntrada:String(p.precoEntrada),
+      dataLancamento:p.dataLancamento||"",dataEncerramento:p.dataEncerramento||"",
+      recompra:p.recompra!==""&&p.recompra!=null?String(p.recompra):"",
+      corretagem:p.corretagem!=null?String(p.corretagem):"0",
+      status:p.status||"Aberta",
+      observacoes:p.observacoes||""
+    });
+  };
+  const cancelarEdicao=()=>{setEditandoId(null);setEditForm(null);};
+  const setEF=(k,v)=>setEditForm(f=>({...f,[k]:v}));
+
+  const salvarEdicao=(id)=>{
+    setPosicoes(list=>list.map(p=>{
+      if(p.id!==id) return p;
+      const status=editForm.status;
+      const dataEncerramento=status==="Aberta"?"":(editForm.dataEncerramento||hojeISO());
+      return{
+        ...p,
+        codigoOpcao:editForm.codigoOpcao.toUpperCase(),
+        strike:parseFloat(editForm.strike)||p.strike,
+        premio:parseFloat(editForm.premio)||p.premio,
+        qtd:parseInt(editForm.qtd)||p.qtd,
+        dataVenc:editForm.dataVenc,
+        precoEntrada:parseFloat(editForm.precoEntrada)||p.precoEntrada,
+        dataLancamento:editForm.dataLancamento,
+        dataEncerramento,
+        recompra:editForm.recompra===""?"":parseFloat(editForm.recompra),
+        corretagem:parseFloat(editForm.corretagem)||0,
+        status,
+        observacoes:editForm.observacoes
+      };
+    }));
+    setEditandoId(null);setEditForm(null);
+  };
+
+  const totalNocional=posicoes.reduce((acc,p)=>acc+calcPosicao(p).noc,0);
   const totalPremio=posicoes.reduce((acc,p)=>acc+p.premio*p.qtd,0);
+
+  const exposicao=(tipo)=>{
+    const list=posicoes.filter(p=>p.tipo===tipo);
+    const abertas=list.filter(p=>p.status==="Aberta");
+    const encerradas=list.filter(p=>p.status!=="Aberta");
+    return{
+      abertas:abertas.length,
+      nocionalAberto:abertas.reduce((a,p)=>a+calcPosicao(p).noc,0),
+      encerradas:encerradas.length,
+      resultadoEncerradas:encerradas.reduce((a,p)=>a+calcPosicao(p).resultado,0)
+    };
+  };
+  const expCall=exposicao("call");
+  const expPut=exposicao("put");
+  const expTotal={
+    abertas:expCall.abertas+expPut.abertas,
+    nocionalAberto:expCall.nocionalAberto+expPut.nocionalAberto,
+    encerradas:expCall.encerradas+expPut.encerradas,
+    resultadoEncerradas:expCall.resultadoEncerradas+expPut.resultadoEncerradas
+  };
 
   return(
     <div>
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
         <div>
-          <div style={{fontSize:16,fontWeight:700,color:C.text}}>Posições Abertas</div>
+          <div style={{fontSize:16,fontWeight:700,color:C.text}}>Posições</div>
           <div style={{fontSize:12,color:C.muted}}>
             {posicoes.length} posição(ões) · Nocional total: <span style={{color:C.accent,fontFamily:"var(--font-mono)"}}>R$ {totalNocional.toFixed(0)}</span> · Prêmio recebido: <span style={{color:C.green,fontFamily:"var(--font-mono)"}}>R$ {totalPremio.toFixed(2)}</span>
           </div>
@@ -676,7 +793,7 @@ function TabPosicoes(){
         </Btn>
       </div>
 
-      {/* Form */}
+      {/* Form de nova posição */}
       {showForm&&(
         <Card style={{marginBottom:16}}>
           <SectionTitle>Nova Posição</SectionTitle>
@@ -688,11 +805,17 @@ function TabPosicoes(){
                 <option value="put">Put Vendida</option>
               </select>
             </Fld>
+            <Fld label="Código da opção"><input className="op-input" value={form.codigoOpcao} onChange={e=>setF("codigoOpcao",e.target.value.toUpperCase())} placeholder="PETRH452" style={iS()}/></Fld>
             <Fld label="Strike"><input className="op-input" type="number" value={form.strike} onChange={e=>setF("strike",e.target.value)} placeholder="45.05" style={iS()}/></Fld>
             <Fld label="Prêmio recebido/ação"><input className="op-input" type="number" value={form.premio} onChange={e=>setF("premio",e.target.value)} placeholder="1.44" style={iS()}/></Fld>
             <Fld label="Quantidade"><input className="op-input" type="number" value={form.qtd} onChange={e=>setF("qtd",e.target.value)} placeholder="100" style={iS()}/></Fld>
             <Fld label="Vencimento"><input className="op-input" type="date" value={form.dataVenc} onChange={e=>setF("dataVenc",e.target.value)} style={iS()}/></Fld>
             <Fld label="Preço de entrada do ativo"><input className="op-input" type="number" value={form.precoEntrada} onChange={e=>setF("precoEntrada",e.target.value)} placeholder="41.81" style={iS()}/></Fld>
+            <Fld label="Data de lançamento"><input className="op-input" type="date" value={form.dataLancamento} onChange={e=>setF("dataLancamento",e.target.value)} style={iS()}/></Fld>
+            <Fld label="Corretagem (R$)"><input className="op-input" type="number" value={form.corretagem} onChange={e=>setF("corretagem",e.target.value)} placeholder="0.00" style={iS()}/></Fld>
+            <div style={{gridColumn:"span 2"}}>
+              <Fld label="Observações"><input className="op-input" value={form.observacoes} onChange={e=>setF("observacoes",e.target.value)} placeholder="opcional" style={iS()}/></Fld>
+            </div>
             <Fld label=""><div style={{paddingTop:18}}><Btn onClick={adicionar} style={{width:"100%"}}>Adicionar</Btn></div></Fld>
           </div>
         </Card>
@@ -700,65 +823,149 @@ function TabPosicoes(){
 
       {/* Lista */}
       {posicoes.length===0?(
-        <EmptyState icon="clipboard" title="Nenhuma posição aberta"
+        <EmptyState icon="clipboard" title="Nenhuma posição registrada"
           desc='Clique em "+ Adicionar Posição" para registrar seus lançamentos'/>
       ):(
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
           {posicoes.map(p=>{
-            const dias=diasAte(p.dataVenc);
-            const alerta=dias<=5;
-            const noc=p.tipo==="call"?p.precoEntrada*p.qtd:p.strike*p.qtd;
-            const premioTotal=p.premio*p.qtd;
-            const retorno=(premioTotal/noc)*100;
+            const{dias,alerta,noc,resultado,retorno}=calcPosicao(p);
+            const editando=editandoId===p.id;
             return(
               <Card key={p.id} style={{border:`1px solid ${alerta?C.red+"44":C.borderSoft}`}}>
-                <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-                  <div style={{minWidth:80}}>
+                <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                  <div style={{minWidth:90}}>
                     <div style={{fontSize:16,fontWeight:700,color:C.text}}>{p.ativo}</div>
-                    <Badge color={p.tipo==="call"?C.accent:"#A78BFA"}>{p.tipo==="call"?"Call":"Put"}</Badge>
+                    <div style={{display:"flex",gap:6,alignItems:"center",marginTop:3,flexWrap:"wrap"}}>
+                      <Badge color={p.tipo==="call"?C.accent:"#A78BFA"}>{p.tipo==="call"?"Call":"Put"}</Badge>
+                      {editando?(
+                        <Badge color={STATUS_COLORS[p.status]||C.muted}>{p.status||"Aberta"}</Badge>
+                      ):(
+                        <StatusSelect value={p.status||"Aberta"} onChange={s=>atualizarStatus(p.id,s)}/>
+                      )}
+                    </div>
+                    {p.codigoOpcao&&<div style={{fontSize:10,color:C.muted,marginTop:3,fontFamily:"var(--font-mono)"}}>{p.codigoOpcao}</div>}
                   </div>
-                  <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:10}}>
+                  <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,minWidth:420}}>
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:9,color:C.muted,fontWeight:600}}>STRIKE</div>
-                      <div style={{fontSize:14,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {p.strike.toFixed(2)}</div>
+                      <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {p.strike.toFixed(2)}</div>
                     </div>
                     <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>QTD. OPÇÕES</div>
-                      <div style={{fontSize:14,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>{p.qtd}</div>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>QTD.</div>
+                      <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>{p.qtd}</div>
                     </div>
                     <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>PRÊMIO/OPÇÃO</div>
-                      <div style={{fontSize:14,fontWeight:600,color:C.green,fontFamily:"var(--font-mono)"}}>R$ {p.premio.toFixed(2)}</div>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>PRÊMIO/AÇÃO</div>
+                      <div style={{fontSize:13,fontWeight:600,color:C.green,fontFamily:"var(--font-mono)"}}>R$ {p.premio.toFixed(2)}</div>
                     </div>
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:9,color:C.muted,fontWeight:600}}>NOCIONAL</div>
-                      <div style={{fontSize:14,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {noc.toFixed(0)}</div>
+                      <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {noc.toFixed(0)}</div>
+                    </div>
+                    <div style={{textAlign:"center"}}>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RESULTADO LÍQ.</div>
+                      <div style={{fontSize:13,fontWeight:600,color:resultado>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>R$ {resultado.toFixed(2)}</div>
                     </div>
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RETORNO</div>
-                      <div style={{fontSize:14,fontWeight:600,color:C.yellow,fontFamily:"var(--font-mono)"}}>{retorno.toFixed(2)}%</div>
+                      <div style={{fontSize:13,fontWeight:600,color:retorno>=0?C.yellow:C.red,fontFamily:"var(--font-mono)"}}>{retorno.toFixed(2)}%</div>
                     </div>
                     <div style={{textAlign:"center"}}>
                       <div style={{fontSize:9,color:C.muted,fontWeight:600}}>VENCIMENTO</div>
-                      <div style={{fontSize:14,fontWeight:600,color:alerta?C.red:dias<=10?C.yellow:C.text,fontFamily:"var(--font-mono)",
+                      <div style={{fontSize:13,fontWeight:600,color:alerta?C.red:dias<=10&&p.status==="Aberta"?C.yellow:C.text,fontFamily:"var(--font-mono)",
                         display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
                         {dias}d {alerta&&<Icon name="alert" size={12}/>}
                       </div>
-                      <div style={{fontSize:10,color:C.muted}}>{p.dataVenc}</div>
+                      <div style={{fontSize:9,color:C.muted}}>{p.dataVenc}</div>
                     </div>
                   </div>
-                  <Btn onClick={()=>remover(p.id)} variant="danger" style={{padding:"6px 12px",fontSize:11}}>Remover</Btn>
+                  <div style={{display:"flex",gap:6,flexShrink:0}}>
+                    <Btn onClick={()=>editando?cancelarEdicao():iniciarEdicao(p)} variant="secondary" style={{padding:"6px 10px",fontSize:11,display:"flex",alignItems:"center",gap:5}}>
+                      <Icon name={editando?"x":"edit"} size={12}/> {editando?"Fechar":"Editar"}
+                    </Btn>
+                    <Btn onClick={()=>remover(p.id)} variant="danger" style={{padding:"6px 10px",fontSize:11}}>Remover</Btn>
+                  </div>
                 </div>
+
+                {p.observacoes&&!editando&&(
+                  <div style={{marginTop:10,fontSize:11,color:C.muted,fontStyle:"italic"}}>{p.observacoes}</div>
+                )}
+
                 {alerta&&(
                   <div style={{marginTop:10,padding:"8px 10px",background:C.red+"0F",borderRadius:8,fontSize:11,color:C.red,
                     display:"flex",alignItems:"center",gap:6}}>
                     <Icon name="alert" size={13}/> Vence em {dias} dia(s) — decida: fechar, rolar ou deixar expirar
                   </div>
                 )}
+
+                {editando&&editForm&&(
+                  <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${C.borderSoft}`}}>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                      <Fld label="Status">
+                        <select className="op-select" value={editForm.status} onChange={e=>setEF("status",e.target.value)} style={iS()}>
+                          {STATUS_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </Fld>
+                      <Fld label="Código da opção"><input className="op-input" value={editForm.codigoOpcao} onChange={e=>setEF("codigoOpcao",e.target.value.toUpperCase())} style={iS()}/></Fld>
+                      <Fld label="Strike"><input className="op-input" type="number" value={editForm.strike} onChange={e=>setEF("strike",e.target.value)} style={iS()}/></Fld>
+                      <Fld label="Prêmio/ação"><input className="op-input" type="number" value={editForm.premio} onChange={e=>setEF("premio",e.target.value)} style={iS()}/></Fld>
+                      <Fld label="Quantidade"><input className="op-input" type="number" value={editForm.qtd} onChange={e=>setEF("qtd",e.target.value)} style={iS()}/></Fld>
+                      <Fld label="Preço do ativo na entrada"><input className="op-input" type="number" value={editForm.precoEntrada} onChange={e=>setEF("precoEntrada",e.target.value)} style={iS()}/></Fld>
+                      <Fld label="Vencimento"><input className="op-input" type="date" value={editForm.dataVenc} onChange={e=>setEF("dataVenc",e.target.value)} style={iS()}/></Fld>
+                      <Fld label="Data de lançamento"><input className="op-input" type="date" value={editForm.dataLancamento} onChange={e=>setEF("dataLancamento",e.target.value)} style={iS()}/></Fld>
+                      <Fld label="Data de encerramento"><input className="op-input" type="date" value={editForm.dataEncerramento} onChange={e=>setEF("dataEncerramento",e.target.value)} style={iS()}/></Fld>
+                      <Fld label="Recompra/ação (R$)" hint="Vazio = expirou pó">
+                        <input className="op-input" type="number" value={editForm.recompra} onChange={e=>setEF("recompra",e.target.value)} placeholder="vazio = pó" style={iS()}/>
+                      </Fld>
+                      <Fld label="Corretagem (R$)"><input className="op-input" type="number" value={editForm.corretagem} onChange={e=>setEF("corretagem",e.target.value)} style={iS()}/></Fld>
+                      <div style={{gridColumn:"span 2"}}>
+                        <Fld label="Observações"><input className="op-input" value={editForm.observacoes} onChange={e=>setEF("observacoes",e.target.value)} style={iS()}/></Fld>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:8,marginTop:4}}>
+                      <Btn onClick={()=>salvarEdicao(p.id)} style={{flex:1}}>Salvar alterações</Btn>
+                      <Btn onClick={cancelarEdicao} variant="secondary" style={{flex:1}}>Cancelar</Btn>
+                    </div>
+                  </div>
+                )}
               </Card>
             );
           })}
         </div>
+      )}
+
+      {/* Exposição consolidada */}
+      {posicoes.length>0&&(
+        <Card>
+          <SectionTitle>Exposição Consolidada</SectionTitle>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+            {[{titulo:"Call Coberta",cor:C.accent,d:expCall},
+              {titulo:"Put Vendida",cor:"#A78BFA",d:expPut},
+              {titulo:"Consolidado",cor:C.text,d:expTotal}].map(({titulo,cor,d})=>(
+              <div key={titulo} style={{background:C.input,borderRadius:10,padding:14,border:`1px solid ${C.borderSoft}`}}>
+                <div style={{fontSize:12,fontWeight:700,color:cor,marginBottom:10}}>{titulo}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                  <div>
+                    <div style={{fontSize:9,color:C.muted,fontWeight:600}}>OPERAÇÕES ABERTAS</div>
+                    <div style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"var(--font-mono)"}}>{d.abertas}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:9,color:C.muted,fontWeight:600}}>NOCIONAL ABERTO</div>
+                    <div style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {d.nocionalAberto.toFixed(0)}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:9,color:C.muted,fontWeight:600}}>ENCERRADAS</div>
+                    <div style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"var(--font-mono)"}}>{d.encerradas}</div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RESULTADO ENCERRADAS</div>
+                    <div style={{fontSize:16,fontWeight:700,color:d.resultadoEncerradas>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>R$ {d.resultadoEncerradas.toFixed(2)}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
     </div>
   );
@@ -923,133 +1130,183 @@ function TabRolagem(){
 }
 
 // ════════════════════════════════════════════════════════════════════
-// ABA 5 — PERFORMANCE
+// ABA — PERFORMANCE
 // ════════════════════════════════════════════════════════════════════
+const MESES=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
 function TabPerformance(){
-  const [ops,setOps]=useState([]);
-  const [form,setForm]=useState({mes:"",resultado:"",meta:"2000",selic:"0.1400"});
-  const [showForm,setShowForm]=useState(false);
+  const [posicoes,setPosicoes]=useState([]);
+  const [ano,setAno]=useState(new Date().getFullYear());
+  const [meta,setMeta]=useState("2000");
+  const [capital,setCapital]=useState("50000");
   const [loaded,setLoaded]=useState(false);
 
   useEffect(()=>{
     try{
-      const saved=JSON.parse(localStorage.getItem("op_performance")||"[]");
-      setOps(saved);
+      const saved=JSON.parse(localStorage.getItem("op_posicoes")||"[]");
+      setPosicoes(saved);
+    }catch{}
+    try{
+      const cfg=JSON.parse(localStorage.getItem("op_performance_cfg")||"{}");
+      if(cfg.meta!=null) setMeta(cfg.meta);
+      if(cfg.capital!=null) setCapital(cfg.capital);
     }catch{}
     setLoaded(true);
   },[]);
 
   useEffect(()=>{
     if(!loaded) return;
-    localStorage.setItem("op_performance",JSON.stringify(ops));
-  },[ops,loaded]);
+    localStorage.setItem("op_performance_cfg",JSON.stringify({meta,capital}));
+  },[meta,capital,loaded]);
 
-  const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const fechadas=posicoes.filter(p=>(p.status==="Encerrada"||p.status==="Exercida")&&p.dataEncerramento);
+  const fechadasAno=fechadas.filter(p=>new Date(p.dataEncerramento).getFullYear()===ano);
 
-  const meses=["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  const ano=new Date().getFullYear();
+  const metaV=parseFloat(meta)||0;
+  const capitalV=parseFloat(capital)||0;
+  const selicMesPct=(Math.pow(1.14,1/12)-1)*100;
 
-  const adicionar=()=>{
-    if(!form.mes||!form.resultado){alert("Preencha mês e resultado.");return;}
-    setOps(o=>[...o.filter(x=>x.mes!==form.mes),{mes:form.mes,resultado:parseFloat(form.resultado),meta:parseFloat(form.meta),selic:parseFloat(form.selic)}]);
-    setShowForm(false);
-  };
-
-  // Gera todos os 12 meses
-  const data=meses.map((m,i)=>{
-    const op=ops.find(o=>o.mes===m);
-    const selicMes=op?((Math.pow(1+op.selic,1/12)-1)*100).toFixed(2):((Math.pow(1.14,1/12)-1)*100).toFixed(2);
-    return{mes:m,resultado:op?.resultado??null,meta:op?.meta??2000,selicMes:parseFloat(selicMes),hasData:!!op};
+  const data=MESES.map((m,i)=>{
+    const doMes=fechadasAno.filter(p=>new Date(p.dataEncerramento).getMonth()===i);
+    const resultado=doMes.reduce((a,p)=>a+calcPosicao(p).resultado,0);
+    return{mes:m,resultado,selicMes:selicMesPct,hasData:doMes.length>0,qtd:doMes.length};
   });
 
-  const totalRes=data.reduce((a,d)=>a+(d.resultado??0),0);
+  const totalRes=data.reduce((a,d)=>a+d.resultado,0);
   const totalSelic=data.reduce((a,d)=>a+d.selicMes,0);
   const mesesComDados=data.filter(d=>d.hasData);
-  const acertos=mesesComDados.filter(d=>d.resultado>=d.meta).length;
+  const acertos=mesesComDados.filter(d=>d.resultado>=metaV).length;
+  const retornoCapital=capitalV?(totalRes/capitalV)*100:0;
+  const mediaMensal=mesesComDados.length>0?totalRes/mesesComDados.length:0;
 
-  // Mini bar chart
-  const maxVal=Math.max(...data.map(d=>Math.abs(d.resultado??0)),1);
+  let acc=0;
+  const acumulado=data.map(d=>{acc+=d.resultado;return{mes:d.mes,valor:acc,hasData:d.hasData};});
+
+  const porAtivoMap={};
+  fechadasAno.forEach(p=>{
+    const r=calcPosicao(p).resultado;
+    porAtivoMap[p.ativo]=(porAtivoMap[p.ativo]||0)+r;
+  });
+  const porAtivo=Object.entries(porAtivoMap).map(([ativo,resultado])=>({ativo,resultado})).sort((a,b)=>b.resultado-a.resultado);
+  const maxAtivoAbs=Math.max(...porAtivo.map(a=>Math.abs(a.resultado)),1);
+
+  const chartMax=Math.max(...data.map(d=>Math.abs(d.resultado)),metaV,1);
+  const maxAcumAbs=Math.max(...acumulado.map(d=>Math.abs(d.valor)),1);
 
   return(
     <div>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div>
-          <div style={{fontSize:16,fontWeight:700,color:C.text}}>Performance {ano}</div>
-          <div style={{fontSize:12,color:C.muted}}>Resultado acumulado vs Selic</div>
-        </div>
-        <Btn onClick={()=>setShowForm(!showForm)} variant={showForm?"secondary":"primary"}>
-          {showForm?"Cancelar":"+ Lançar Resultado"}
-        </Btn>
-      </div>
-
-      {showForm&&(
-        <Card style={{marginBottom:16}}>
-          <SectionTitle>Lançar Resultado do Mês</SectionTitle>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-            <Fld label="Mês">
-              <select className="op-select" value={form.mes} onChange={e=>setF("mes",e.target.value)} style={iS()}>
-                <option value="">Selecione</option>
-                {meses.map(m=><option key={m} value={m}>{m}</option>)}
-              </select>
-            </Fld>
-            <Fld label="Resultado líq. (R$)">
-              <input className="op-input" type="number" value={form.resultado} onChange={e=>setF("resultado",e.target.value)} placeholder="267.76" style={iS()}/>
-            </Fld>
-            <Fld label="Meta mensal (R$)">
-              <input className="op-input" type="number" value={form.meta} onChange={e=>setF("meta",e.target.value)} placeholder="2000" style={iS()}/>
-            </Fld>
-            <Fld label="">
-              <div style={{paddingTop:18}}><Btn onClick={adicionar} style={{width:"100%"}}>Salvar</Btn></div>
-            </Fld>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button className="op-btn" onClick={()=>setAno(a=>a-1)} style={{
+            width:30,height:30,borderRadius:8,border:`1px solid ${C.border}`,background:C.input,
+            color:C.muted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"
+          }}><Icon name="chevron-left" size={15}/></button>
+          <div>
+            <div style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"var(--font-mono)"}}>Performance {ano}</div>
+            <div style={{fontSize:12,color:C.muted}}>Puxado das posições encerradas · Resultado vs Selic</div>
           </div>
-        </Card>
-      )}
+          <button className="op-btn" onClick={()=>setAno(a=>a+1)} style={{
+            width:30,height:30,borderRadius:8,border:`1px solid ${C.border}`,background:C.input,
+            color:C.muted,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"
+          }}><Icon name="chevron-right" size={15}/></button>
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <div>
+            <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.6px",fontWeight:600,marginBottom:3}}>Meta mensal (R$)</div>
+            <input className="op-input" type="number" value={meta} onChange={e=>setMeta(e.target.value)} style={iS({width:120})}/>
+          </div>
+          <div>
+            <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.6px",fontWeight:600,marginBottom:3}}>Capital total (R$)</div>
+            <input className="op-input" type="number" value={capital} onChange={e=>setCapital(e.target.value)} style={iS({width:130})}/>
+          </div>
+        </div>
+      </div>
 
       {/* KPIs */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:16}}>
-        <Metric label="Resultado Acumulado" value={`R$ ${totalRes.toFixed(2)}`} hi={totalRes>0?C.green:C.red}/>
-        <Metric label="Selic Acumulada (est.)" value={`${totalSelic.toFixed(2)}%`} sub="base 14% a.a." hi={C.muted}/>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:16}}>
+        <Metric label="Resultado do Ano" value={`R$ ${totalRes.toFixed(2)}`} hi={totalRes>0?C.green:totalRes<0?C.red:C.muted}/>
+        <Metric label="Retorno s/ Capital" value={`${retornoCapital.toFixed(2)}%`} hi={retornoCapital>0?C.green:retornoCapital<0?C.red:C.muted}/>
+        <Metric label="Selic Estimada" value={`${totalSelic.toFixed(2)}%`} sub="base 14% a.a." hi={C.muted}/>
         <Metric label="Meses c/ Meta Batida" value={`${acertos}/${mesesComDados.length}`}
           hi={acertos===mesesComDados.length&&acertos>0?C.green:acertos>0?C.yellow:C.muted}/>
-        <Metric label="Média Mensal" value={mesesComDados.length>0?`R$ ${(totalRes/mesesComDados.length).toFixed(2)}`:"—"}
-          hi={mesesComDados.length>0&&totalRes/mesesComDados.length>0?C.green:C.muted}/>
+        <Metric label="Média Mensal" value={mesesComDados.length>0?`R$ ${mediaMensal.toFixed(2)}`:"—"}
+          hi={mesesComDados.length>0&&mediaMensal>0?C.green:C.muted}/>
       </div>
 
-      {/* Gráfico de barras */}
+      {/* Gráfico de barras mensais */}
       <Card style={{marginBottom:16}}>
         <SectionTitle>Resultado Mensal vs Meta vs Selic</SectionTitle>
-        <div style={{display:"flex",gap:4,alignItems:"flex-end",height:120,padding:"0 4px"}}>
-          {data.map((d,i)=>{
-            const h=d.hasData?Math.abs(d.resultado??0)/maxVal*90:0;
-            const col=!d.hasData?C.input:d.resultado>=d.meta?C.green:d.resultado>0?C.yellow:C.red;
-            const selicH=(d.selicMes/Math.max(data.reduce((a,x)=>Math.max(a,x.selicMes),0),1))*90;
-            return(
-              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-                <div style={{width:"100%",display:"flex",gap:2,alignItems:"flex-end",height:100}}>
+        <div style={{position:"relative",padding:"0 4px",marginTop:16}}>
+          {metaV>0&&(
+            <div style={{position:"absolute",left:0,right:0,bottom:`${Math.min(100,(metaV/chartMax)*100)}px`,
+              borderTop:`1px dashed ${C.accent}77`,zIndex:1}}>
+              <span style={{position:"absolute",right:0,top:-13,fontSize:9,color:C.accent,background:C.card,padding:"0 4px"}}>
+                Meta R$ {metaV.toFixed(0)}
+              </span>
+            </div>
+          )}
+          <div style={{display:"flex",gap:4,alignItems:"flex-end",height:100}}>
+            {data.map((d,i)=>{
+              const h=Math.abs(d.resultado)/chartMax*100;
+              const col=!d.hasData?C.input:d.resultado>=metaV?C.green:d.resultado>0?C.yellow:C.red;
+              const selicH=(d.selicMes/chartMax)*100;
+              return(
+                <div key={i} style={{flex:1,display:"flex",gap:2,alignItems:"flex-end",height:"100%"}}>
                   <div style={{flex:1,background:col,borderRadius:"3px 3px 0 0",height:`${h}px`,minHeight:d.hasData?2:0,transition:"height 0.3s"}}/>
                   <div style={{width:3,background:C.accent+"66",borderRadius:"2px 2px 0 0",height:`${selicH}px`}}/>
                 </div>
+              );
+            })}
+          </div>
+          <div style={{display:"flex",gap:4,marginTop:4}}>
+            {data.map((d,i)=>(
+              <div key={i} style={{flex:1,textAlign:"center"}}>
                 <div style={{fontSize:9,color:C.muted}}>{d.mes}</div>
-                {d.hasData&&<div style={{fontSize:9,fontWeight:700,color:col,fontFamily:"var(--font-mono)"}}>{d.resultado>=0?"+":""}{d.resultado?.toFixed(0)}</div>}
+                {d.hasData&&<div style={{fontSize:9,fontWeight:700,color:d.resultado>=metaV?C.green:d.resultado>0?C.yellow:C.red,fontFamily:"var(--font-mono)"}}>
+                  {d.resultado>=0?"+":""}{d.resultado.toFixed(0)}
+                </div>}
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
-        <div style={{display:"flex",gap:16,marginTop:8,fontSize:10,color:C.muted}}>
+        <div style={{display:"flex",gap:16,marginTop:12,fontSize:10,color:C.muted,flexWrap:"wrap"}}>
           <span>■ <span style={{color:C.green}}>Meta batida</span></span>
           <span>■ <span style={{color:C.yellow}}>Positivo</span></span>
           <span>■ <span style={{color:C.red}}>Negativo</span></span>
           <span>▌ <span style={{color:C.accent}}>Selic equiv.</span></span>
+          <span>┄ <span style={{color:C.accent}}>Linha da meta</span></span>
         </div>
       </Card>
 
-      {/* Tabela */}
-      <Card>
+      {/* Acumulado do ano */}
+      <Card style={{marginBottom:16}}>
+        <SectionTitle>Acumulado do Ano</SectionTitle>
+        <div style={{display:"flex",gap:4,alignItems:"flex-end",height:90,padding:"0 4px"}}>
+          {acumulado.map((d,i)=>{
+            const h=Math.abs(d.valor)/maxAcumAbs*80;
+            const col=d.valor>=0?C.accent:C.red;
+            return(
+              <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
+                <div style={{width:"100%",height:80,display:"flex",alignItems:"flex-end"}}>
+                  <div style={{width:"100%",background:col+"AA",borderRadius:"3px 3px 0 0",height:`${h}px`,minHeight:d.hasData?2:0,transition:"height 0.3s"}}/>
+                </div>
+                <div style={{fontSize:9,color:C.muted}}>{d.mes}</div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{fontSize:11,color:C.muted,marginTop:8}}>
+          Saldo acumulado ao fim do ano: <span style={{color:totalRes>=0?C.green:C.red,fontWeight:700,fontFamily:"var(--font-mono)"}}>R$ {totalRes.toFixed(2)}</span>
+        </div>
+      </Card>
+
+      {/* Tabela mensal */}
+      <Card style={{marginBottom:16}}>
         <SectionTitle>Detalhe por Mês</SectionTitle>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
           <thead>
             <tr>
-              {["Mês","Resultado (R$)","Meta (R$)","Selic equi.","Bateu Meta?","Múltiplo Selic"].map(h=>(
+              {["Mês","Resultado (R$)","Meta (R$)","Selic equi.","Bateu Meta?"].map(h=>(
                 <th key={h} style={{padding:"8px 10px",background:C.input,color:C.muted,textAlign:"center",
                   fontSize:10,textTransform:"uppercase",letterSpacing:"0.5px",fontWeight:700,border:`1px solid ${C.borderSoft}`}}>{h}</th>
               ))}
@@ -1061,16 +1318,12 @@ function TabPerformance(){
                 <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:600,color:C.text}}>{d.mes}/{ano}</td>
                 <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontFamily:"var(--font-mono)",
                   color:!d.hasData?C.muted:d.resultado>=0?C.green:C.red,fontWeight:d.hasData?700:400}}>
-                  {d.hasData?`R$ ${d.resultado?.toFixed(2)}`:"—"}
+                  {d.hasData?`R$ ${d.resultado.toFixed(2)}`:"—"}
                 </td>
-                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted,fontFamily:"var(--font-mono)"}}>R$ {d.meta.toFixed(0)}</td>
+                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted,fontFamily:"var(--font-mono)"}}>R$ {metaV.toFixed(0)}</td>
                 <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted,fontFamily:"var(--font-mono)"}}>{d.selicMes.toFixed(2)}%</td>
                 <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`}}>
-                  {d.hasData?<Badge color={d.resultado>=d.meta?C.green:C.red}>{d.resultado>=d.meta?"SIM":"NÃO"}</Badge>:"—"}
-                </td>
-                <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontFamily:"var(--font-mono)",
-                  color:d.hasData&&d.resultado>0?d.resultado/d.selicMes>=1.5?C.green:d.resultado/d.selicMes>=1?C.yellow:C.muted:C.muted}}>
-                  {d.hasData&&d.resultado>0?`${(d.resultado/d.selicMes).toFixed(1)}×`:"—"}
+                  {d.hasData?<Badge color={d.resultado>=metaV?C.green:C.red}>{d.resultado>=metaV?"SIM":"NÃO"}</Badge>:"—"}
                 </td>
               </tr>
             ))}
@@ -1079,12 +1332,50 @@ function TabPerformance(){
               <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:700,color:totalRes>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>R$ {totalRes.toFixed(2)}</td>
               <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted}}>—</td>
               <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted,fontFamily:"var(--font-mono)"}}>{totalSelic.toFixed(2)}%</td>
-              <td colSpan={2} style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted}}>
-                {acertos}/{mesesComDados.length} meses com meta batida
+              <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.muted}}>
+                {acertos}/{mesesComDados.length}
               </td>
             </tr>
           </tbody>
         </table>
+      </Card>
+
+      {/* Ranking por ativo */}
+      <Card>
+        <SectionTitle>Resultado por Ativo</SectionTitle>
+        {porAtivo.length===0?(
+          <div style={{textAlign:"center",padding:24,color:C.muted,fontSize:12}}>Nenhuma posição encerrada em {ano}</div>
+        ):(
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+            <thead>
+              <tr>
+                {["Ativo","Resultado (R$)","Distribuição"].map(h=>(
+                  <th key={h} style={{padding:"8px 10px",background:C.input,color:C.muted,textAlign:h==="Distribuição"?"left":"center",
+                    fontSize:10,textTransform:"uppercase",letterSpacing:"0.5px",fontWeight:700,border:`1px solid ${C.borderSoft}`}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {porAtivo.map((a,i)=>{
+                const w=Math.abs(a.resultado)/maxAtivoAbs*100;
+                const col=a.resultado>=0?C.green:C.red;
+                return(
+                  <tr key={a.ativo} style={{background:i%2===0?C.card:"#151a26"}}>
+                    <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:700,color:C.text}}>{a.ativo}</td>
+                    <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:700,color:col,fontFamily:"var(--font-mono)"}}>
+                      R$ {a.resultado.toFixed(2)}
+                    </td>
+                    <td style={{padding:"8px 10px",border:`1px solid ${C.borderSoft}`}}>
+                      <div style={{background:C.input,borderRadius:6,height:8,overflow:"hidden"}}>
+                        <div style={{width:`${w}%`,height:"100%",background:col,borderRadius:6,transition:"width 0.3s"}}/>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </Card>
     </div>
   );
@@ -1751,10 +2042,10 @@ function TabPrecoTeto(){
 const TABS=[
   {id:"analisar",label:"Analisar",icon:"zap",comp:TabAnalisar},
   {id:"comparar",label:"Comparar Strikes",icon:"bars",comp:TabComparar},
-  {id:"posicoes",label:"Posições",icon:"clipboard",comp:TabPosicoes},
   {id:"rolagem",label:"Rolagem",icon:"refresh",comp:TabRolagem},
-  {id:"performance",label:"Performance",icon:"trending",comp:TabPerformance},
   {id:"precoteto",label:"Preço Teto",icon:"target",comp:TabPrecoTeto},
+  {id:"posicoes",label:"Posições",icon:"clipboard",comp:TabPosicoes},
+  {id:"performance",label:"Performance",icon:"trending",comp:TabPerformance},
 ];
 
 function LogoutButton(){
