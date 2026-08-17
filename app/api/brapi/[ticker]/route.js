@@ -13,16 +13,15 @@ export async function GET(request, { params }) {
     );
   }
 
-  const qs = new URLSearchParams({ token, range: "3mo", interval: "1d" });
-  if (wantStats) {
-    qs.set("modules", "defaultKeyStatistics");
-  }
-
-  const brapiRes = await fetch(
-    `https://brapi.dev/api/quote/${encodeURIComponent(ticker)}?${qs.toString()}`
+  // Cotação básica funciona pra qualquer ticker com token pessoal — busca sempre,
+  // independente do módulo de fundamentos (que o plano gratuito só libera pra
+  // um punhado de ações de teste, ver abaixo).
+  const baseQs = new URLSearchParams({ token, range: "3mo", interval: "1d" });
+  const baseRes = await fetch(
+    `https://brapi.dev/api/quote/${encodeURIComponent(ticker)}?${baseQs.toString()}`
   );
-  const data = await brapiRes.json().catch(() => null);
-  const result = data?.results?.[0];
+  const baseData = await baseRes.json().catch(() => null);
+  const result = baseData?.results?.[0];
 
   if (!result) {
     return NextResponse.json({ price: null, prices: [] }, { status: 404 });
@@ -37,7 +36,25 @@ export async function GET(request, { params }) {
     return NextResponse.json({ price, prices });
   }
 
-  const dks = result.defaultKeyStatistics || {};
+  // defaultKeyStatistics (LPA, VPA, dividend yield) é módulo pago no plano
+  // gratuito da Brapi pra maioria dos tickers — best-effort, sem derrubar o preço.
+  let dks = {};
+  try {
+    const statsQs = new URLSearchParams({
+      token,
+      range: "3mo",
+      interval: "1d",
+      modules: "defaultKeyStatistics",
+    });
+    const statsRes = await fetch(
+      `https://brapi.dev/api/quote/${encodeURIComponent(ticker)}?${statsQs.toString()}`
+    );
+    const statsData = await statsRes.json().catch(() => null);
+    const statsResult = statsData?.results?.[0];
+    if (statsResult && !statsData?.error) {
+      dks = statsResult.defaultKeyStatistics || {};
+    }
+  } catch {}
 
   return NextResponse.json({
     price,

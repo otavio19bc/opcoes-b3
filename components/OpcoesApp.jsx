@@ -641,6 +641,13 @@ function blankForm(){
     corretagem:"",observacoes:""};
 }
 
+function diasEntre(inicio,fim){
+  if(!inicio) return null;
+  const d0=new Date(inicio+"T00:00:00");
+  const d1=fim?new Date(fim+"T00:00:00"):new Date(new Date().toDateString());
+  return Math.max(0,Math.round((d1-d0)/86400000));
+}
+
 function calcPosicao(p){
   const dias=diasAte(p.dataVenc);
   const alerta=dias<=5&&p.status==="Aberta";
@@ -653,7 +660,8 @@ function calcPosicao(p){
   const resultadoOpcao=(p.premio-recompra)*p.qtd-corretagem;
   const resultado=resultadoOpcao+lucroAtivo;
   const retorno=noc?(resultado/noc)*100:0;
-  return{dias,alerta,noc,resultado,resultadoOpcao,lucroAtivo,retorno};
+  const diasOperacao=diasEntre(p.dataLancamento,p.status!=="Aberta"?p.dataEncerramento:null);
+  return{dias,alerta,noc,resultado,resultadoOpcao,lucroAtivo,retorno,diasOperacao};
 }
 
 function StatusSelect({value,onChange}){
@@ -669,6 +677,134 @@ function StatusSelect({value,onChange}){
     }}>
       {STATUS_OPTIONS.map(s=><option key={s} value={s} style={{background:C.card,color:C.text}}>{s}</option>)}
     </select>
+  );
+}
+
+function PosicaoCard({p,editando,editForm,onIniciarEdicao,onCancelarEdicao,onSalvarEdicao,onSetEF,onStatusChange,onRemover}){
+  const{dias,alerta,noc,resultado,lucroAtivo,retorno,diasOperacao}=calcPosicao(p);
+  const fechada=p.status!=="Aberta";
+  return(
+    <Card style={{border:`1px solid ${alerta?C.red+"44":C.borderSoft}`}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+        <div>
+          <div style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}>
+            <span style={{fontSize:18,fontWeight:800,color:C.text,letterSpacing:"-0.01em"}}>{p.ativo}</span>
+            {p.codigoOpcao&&<span style={{fontSize:13,fontWeight:600,color:C.muted,fontFamily:"var(--font-mono)"}}>/ {p.codigoOpcao}</span>}
+          </div>
+          <div style={{display:"flex",gap:6,alignItems:"center",marginTop:5,flexWrap:"wrap"}}>
+            <Badge color={p.tipo==="call"?C.accent:"#A78BFA"}>{p.tipo==="call"?"Call":"Put"}</Badge>
+            {editando?(
+              <Badge color={STATUS_COLORS[p.status]||C.muted}>{p.status||"Aberta"}</Badge>
+            ):(
+              <StatusSelect value={p.status||"Aberta"} onChange={s=>onStatusChange(p.id,s)}/>
+            )}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:6,flexShrink:0}}>
+          <Btn onClick={()=>editando?onCancelarEdicao():onIniciarEdicao(p)} variant="secondary" style={{padding:"6px 10px",fontSize:11,display:"flex",alignItems:"center",gap:5}}>
+            <Icon name={editando?"x":"edit"} size={12}/> {editando?"Fechar":"Editar"}
+          </Btn>
+          <Btn onClick={()=>onRemover(p.id)} variant="danger" style={{padding:"6px 10px",fontSize:11}}>Remover</Btn>
+        </div>
+      </div>
+
+      {fechada&&(
+        <div style={{marginTop:12,padding:"10px 12px",borderRadius:8,
+          background:(resultado>=0?C.green:C.red)+"14",border:`1px solid ${(resultado>=0?C.green:C.red)}33`}}>
+          <div style={{fontSize:19,fontWeight:800,color:resultado>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>
+            R$ {resultado.toFixed(2)}
+          </div>
+          <div style={{fontSize:11,color:C.muted,marginTop:2}}>
+            {retorno.toFixed(2)}% de retorno{diasOperacao!=null&&<> · {diasOperacao} dia{diasOperacao===1?"":"s"} de operação</>}
+          </div>
+        </div>
+      )}
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(80px,1fr))",gap:8,marginTop:12}}>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:9,color:C.muted,fontWeight:600}}>STRIKE</div>
+          <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {p.strike.toFixed(2)}</div>
+        </div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:9,color:C.muted,fontWeight:600}}>QTD.</div>
+          <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>{p.qtd}</div>
+        </div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:9,color:C.muted,fontWeight:600}}>PRÊMIO/AÇÃO</div>
+          <div style={{fontSize:13,fontWeight:600,color:C.green,fontFamily:"var(--font-mono)"}}>R$ {p.premio.toFixed(2)}</div>
+        </div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:9,color:C.muted,fontWeight:600}}>NOCIONAL</div>
+          <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {noc.toFixed(0)}</div>
+        </div>
+        {!fechada&&(
+          <>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RESULTADO LÍQ.</div>
+              <div style={{fontSize:13,fontWeight:600,color:resultado>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>R$ {resultado.toFixed(2)}</div>
+              {lucroAtivo!==0&&<div style={{fontSize:8.5,color:C.muted,fontFamily:"var(--font-mono)"}}>ativo: {lucroAtivo>=0?"+":""}{lucroAtivo.toFixed(2)}</div>}
+            </div>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RETORNO</div>
+              <div style={{fontSize:13,fontWeight:600,color:retorno>=0?C.yellow:C.red,fontFamily:"var(--font-mono)"}}>{retorno.toFixed(2)}%</div>
+            </div>
+            <div style={{textAlign:"center"}}>
+              <div style={{fontSize:9,color:C.muted,fontWeight:600}}>VENCIMENTO</div>
+              <div style={{fontSize:13,fontWeight:600,color:alerta?C.red:dias<=10?C.yellow:C.text,fontFamily:"var(--font-mono)",
+                display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+                {dias}d {alerta&&<Icon name="alert" size={12}/>}
+              </div>
+              <div style={{fontSize:9,color:C.muted}}>{p.dataVenc}</div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {p.observacoes&&!editando&&(
+        <div style={{marginTop:10,fontSize:11,color:C.muted,fontStyle:"italic"}}>{p.observacoes}</div>
+      )}
+
+      {alerta&&(
+        <div style={{marginTop:10,padding:"8px 10px",background:C.red+"0F",borderRadius:8,fontSize:11,color:C.red,
+          display:"flex",alignItems:"center",gap:6}}>
+          <Icon name="alert" size={13}/> Vence em {dias} dia(s) — decida: fechar, rolar ou deixar expirar
+        </div>
+      )}
+
+      {editando&&editForm&&(
+        <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${C.borderSoft}`}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+            <Fld label="Status">
+              <select className="op-select" value={editForm.status} onChange={e=>onSetEF("status",e.target.value)} style={iS()}>
+                {STATUS_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}
+              </select>
+            </Fld>
+            <Fld label="Código da opção"><input className="op-input" value={editForm.codigoOpcao} onChange={e=>onSetEF("codigoOpcao",e.target.value.toUpperCase())} style={iS()}/></Fld>
+            <Fld label="Strike"><input className="op-input" type="number" value={editForm.strike} onChange={e=>onSetEF("strike",e.target.value)} style={iS()}/></Fld>
+            <Fld label="Prêmio/ação"><input className="op-input" type="number" value={editForm.premio} onChange={e=>onSetEF("premio",e.target.value)} style={iS()}/></Fld>
+            <Fld label="Quantidade"><input className="op-input" type="number" value={editForm.qtd} onChange={e=>onSetEF("qtd",e.target.value)} style={iS()}/></Fld>
+            <Fld label="Preço do ativo na entrada"><input className="op-input" type="number" value={editForm.precoEntrada} onChange={e=>onSetEF("precoEntrada",e.target.value)} style={iS()}/></Fld>
+            <Fld label="Vencimento"><input className="op-input" type="date" value={editForm.dataVenc} onChange={e=>onSetEF("dataVenc",e.target.value)} style={iS()}/></Fld>
+            <Fld label="Data de lançamento"><input className="op-input" type="date" value={editForm.dataLancamento} onChange={e=>onSetEF("dataLancamento",e.target.value)} style={iS()}/></Fld>
+            <Fld label="Data de encerramento"><input className="op-input" type="date" value={editForm.dataEncerramento} onChange={e=>onSetEF("dataEncerramento",e.target.value)} style={iS()}/></Fld>
+            <Fld label="Recompra da opção (R$)" hint="Vazio = expirou pó">
+              <input className="op-input" type="number" value={editForm.recompra} onChange={e=>onSetEF("recompra",e.target.value)} placeholder="vazio = pó" style={iS()}/>
+            </Fld>
+            <Fld label="Preço de saída do ativo (R$)" hint="Só se vendeu a ação antes do vencimento">
+              <input className="op-input" type="number" value={editForm.precoSaida} onChange={e=>onSetEF("precoSaida",e.target.value)} placeholder="saída antecipada" style={iS()}/>
+            </Fld>
+            <Fld label="Corretagem (R$)"><input className="op-input" type="number" value={editForm.corretagem} onChange={e=>onSetEF("corretagem",e.target.value)} style={iS()}/></Fld>
+            <div style={{gridColumn:"span 2"}}>
+              <Fld label="Observações"><input className="op-input" value={editForm.observacoes} onChange={e=>onSetEF("observacoes",e.target.value)} style={iS()}/></Fld>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:4}}>
+            <Btn onClick={()=>onSalvarEdicao(p.id)} style={{flex:1}}>Salvar alterações</Btn>
+            <Btn onClick={onCancelarEdicao} variant="secondary" style={{flex:1}}>Cancelar</Btn>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -792,6 +928,8 @@ function TabPosicoes(){
 
   const totalNocional=posicoes.reduce((acc,p)=>acc+calcPosicao(p).noc,0);
   const totalPremio=posicoes.reduce((acc,p)=>acc+p.premio*p.qtd,0);
+  const posicoesAbertas=posicoes.filter(p=>p.status==="Aberta");
+  const posicoesEncerradas=posicoes.filter(p=>p.status!=="Aberta");
 
   const exposicao=(tipo)=>{
     const list=posicoes.filter(p=>p.tipo===tipo);
@@ -856,120 +994,38 @@ function TabPosicoes(){
         </Card>
       )}
 
-      {/* Lista */}
+      {/* Lista — duas colunas: abertas / encerradas */}
       {posicoes.length===0?(
         <EmptyState icon="clipboard" title="Nenhuma posição registrada"
           desc='Clique em "+ Adicionar Posição" para registrar seus lançamentos'/>
       ):(
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:16}}>
-          {posicoes.map(p=>{
-            const{dias,alerta,noc,resultado,lucroAtivo,retorno}=calcPosicao(p);
-            const editando=editandoId===p.id;
-            return(
-              <Card key={p.id} style={{border:`1px solid ${alerta?C.red+"44":C.borderSoft}`}}>
-                <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-                  <div style={{minWidth:90}}>
-                    <div style={{fontSize:16,fontWeight:700,color:C.text}}>{p.ativo}</div>
-                    <div style={{display:"flex",gap:6,alignItems:"center",marginTop:3,flexWrap:"wrap"}}>
-                      <Badge color={p.tipo==="call"?C.accent:"#A78BFA"}>{p.tipo==="call"?"Call":"Put"}</Badge>
-                      {editando?(
-                        <Badge color={STATUS_COLORS[p.status]||C.muted}>{p.status||"Aberta"}</Badge>
-                      ):(
-                        <StatusSelect value={p.status||"Aberta"} onChange={s=>atualizarStatus(p.id,s)}/>
-                      )}
-                    </div>
-                    {p.codigoOpcao&&<div style={{fontSize:10,color:C.muted,marginTop:3,fontFamily:"var(--font-mono)"}}>{p.codigoOpcao}</div>}
-                  </div>
-                  <div style={{flex:1,display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:8,minWidth:420}}>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>STRIKE</div>
-                      <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {p.strike.toFixed(2)}</div>
-                    </div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>QTD.</div>
-                      <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>{p.qtd}</div>
-                    </div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>PRÊMIO/AÇÃO</div>
-                      <div style={{fontSize:13,fontWeight:600,color:C.green,fontFamily:"var(--font-mono)"}}>R$ {p.premio.toFixed(2)}</div>
-                    </div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>NOCIONAL</div>
-                      <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {noc.toFixed(0)}</div>
-                    </div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RESULTADO LÍQ.</div>
-                      <div style={{fontSize:13,fontWeight:600,color:resultado>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>R$ {resultado.toFixed(2)}</div>
-                      {lucroAtivo!==0&&<div style={{fontSize:8.5,color:C.muted,fontFamily:"var(--font-mono)"}}>ativo: {lucroAtivo>=0?"+":""}{lucroAtivo.toFixed(2)}</div>}
-                    </div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RETORNO</div>
-                      <div style={{fontSize:13,fontWeight:600,color:retorno>=0?C.yellow:C.red,fontFamily:"var(--font-mono)"}}>{retorno.toFixed(2)}%</div>
-                    </div>
-                    <div style={{textAlign:"center"}}>
-                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>VENCIMENTO</div>
-                      <div style={{fontSize:13,fontWeight:600,color:alerta?C.red:dias<=10&&p.status==="Aberta"?C.yellow:C.text,fontFamily:"var(--font-mono)",
-                        display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-                        {dias}d {alerta&&<Icon name="alert" size={12}/>}
-                      </div>
-                      <div style={{fontSize:9,color:C.muted}}>{p.dataVenc}</div>
-                    </div>
-                  </div>
-                  <div style={{display:"flex",gap:6,flexShrink:0}}>
-                    <Btn onClick={()=>editando?cancelarEdicao():iniciarEdicao(p)} variant="secondary" style={{padding:"6px 10px",fontSize:11,display:"flex",alignItems:"center",gap:5}}>
-                      <Icon name={editando?"x":"edit"} size={12}/> {editando?"Fechar":"Editar"}
-                    </Btn>
-                    <Btn onClick={()=>remover(p.id)} variant="danger" style={{padding:"6px 10px",fontSize:11}}>Remover</Btn>
-                  </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(380px,1fr))",gap:16,marginBottom:16,alignItems:"start"}}>
+          {[{titulo:"Abertas",lista:posicoesAbertas},{titulo:"Encerradas",lista:posicoesEncerradas}].map(({titulo,lista})=>(
+            <div key={titulo}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <div style={{fontSize:12,fontWeight:700,color:C.text,textTransform:"uppercase",letterSpacing:"0.03em"}}>{titulo}</div>
+                <div style={{fontSize:11,color:C.muted,background:C.input,borderRadius:10,padding:"1px 8px"}}>{lista.length}</div>
+              </div>
+              {lista.length===0?(
+                <div style={{fontSize:12,color:C.muted,padding:"14px 0"}}>Nenhuma posição {titulo==="Abertas"?"aberta":"encerrada"}.</div>
+              ):(
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {lista.map(p=>(
+                    <PosicaoCard key={p.id} p={p}
+                      editando={editandoId===p.id}
+                      editForm={editandoId===p.id?editForm:null}
+                      onIniciarEdicao={iniciarEdicao}
+                      onCancelarEdicao={cancelarEdicao}
+                      onSalvarEdicao={salvarEdicao}
+                      onSetEF={setEF}
+                      onStatusChange={atualizarStatus}
+                      onRemover={remover}
+                    />
+                  ))}
                 </div>
-
-                {p.observacoes&&!editando&&(
-                  <div style={{marginTop:10,fontSize:11,color:C.muted,fontStyle:"italic"}}>{p.observacoes}</div>
-                )}
-
-                {alerta&&(
-                  <div style={{marginTop:10,padding:"8px 10px",background:C.red+"0F",borderRadius:8,fontSize:11,color:C.red,
-                    display:"flex",alignItems:"center",gap:6}}>
-                    <Icon name="alert" size={13}/> Vence em {dias} dia(s) — decida: fechar, rolar ou deixar expirar
-                  </div>
-                )}
-
-                {editando&&editForm&&(
-                  <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${C.borderSoft}`}}>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-                      <Fld label="Status">
-                        <select className="op-select" value={editForm.status} onChange={e=>setEF("status",e.target.value)} style={iS()}>
-                          {STATUS_OPTIONS.map(s=><option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </Fld>
-                      <Fld label="Código da opção"><input className="op-input" value={editForm.codigoOpcao} onChange={e=>setEF("codigoOpcao",e.target.value.toUpperCase())} style={iS()}/></Fld>
-                      <Fld label="Strike"><input className="op-input" type="number" value={editForm.strike} onChange={e=>setEF("strike",e.target.value)} style={iS()}/></Fld>
-                      <Fld label="Prêmio/ação"><input className="op-input" type="number" value={editForm.premio} onChange={e=>setEF("premio",e.target.value)} style={iS()}/></Fld>
-                      <Fld label="Quantidade"><input className="op-input" type="number" value={editForm.qtd} onChange={e=>setEF("qtd",e.target.value)} style={iS()}/></Fld>
-                      <Fld label="Preço do ativo na entrada"><input className="op-input" type="number" value={editForm.precoEntrada} onChange={e=>setEF("precoEntrada",e.target.value)} style={iS()}/></Fld>
-                      <Fld label="Vencimento"><input className="op-input" type="date" value={editForm.dataVenc} onChange={e=>setEF("dataVenc",e.target.value)} style={iS()}/></Fld>
-                      <Fld label="Data de lançamento"><input className="op-input" type="date" value={editForm.dataLancamento} onChange={e=>setEF("dataLancamento",e.target.value)} style={iS()}/></Fld>
-                      <Fld label="Data de encerramento"><input className="op-input" type="date" value={editForm.dataEncerramento} onChange={e=>setEF("dataEncerramento",e.target.value)} style={iS()}/></Fld>
-                      <Fld label="Recompra da opção (R$)" hint="Vazio = expirou pó">
-                        <input className="op-input" type="number" value={editForm.recompra} onChange={e=>setEF("recompra",e.target.value)} placeholder="vazio = pó" style={iS()}/>
-                      </Fld>
-                      <Fld label="Preço de saída do ativo (R$)" hint="Só se vendeu a ação antes do vencimento">
-                        <input className="op-input" type="number" value={editForm.precoSaida} onChange={e=>setEF("precoSaida",e.target.value)} placeholder="saída antecipada" style={iS()}/>
-                      </Fld>
-                      <Fld label="Corretagem (R$)"><input className="op-input" type="number" value={editForm.corretagem} onChange={e=>setEF("corretagem",e.target.value)} style={iS()}/></Fld>
-                      <div style={{gridColumn:"span 2"}}>
-                        <Fld label="Observações"><input className="op-input" value={editForm.observacoes} onChange={e=>setEF("observacoes",e.target.value)} style={iS()}/></Fld>
-                      </div>
-                    </div>
-                    <div style={{display:"flex",gap:8,marginTop:4}}>
-                      <Btn onClick={()=>salvarEdicao(p.id)} style={{flex:1}}>Salvar alterações</Btn>
-                      <Btn onClick={cancelarEdicao} variant="secondary" style={{flex:1}}>Cancelar</Btn>
-                    </div>
-                  </div>
-                )}
-              </Card>
-            );
-          })}
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -1712,8 +1768,8 @@ function TabPrecoTeto(){
       const d=await r.json();
       if(d.price){
         setCotacao(String(d.price));
-        if(typeof d.eps==="number") setLpa(d.eps.toFixed(2));
-        if(typeof d.vpa==="number") setVpa(d.vpa.toFixed(2));
+        if(typeof d.eps==="number") setLpa(prev=>prev||d.eps.toFixed(2));
+        if(typeof d.vpa==="number") setVpa(prev=>prev||d.vpa.toFixed(2));
         if(typeof d.dividendYield==="number"){
           const divEst=(d.price*d.dividendYield/100).toFixed(2);
           setDividendo(prev=>prev||divEst);
@@ -1788,8 +1844,7 @@ function TabPrecoTeto(){
             <div style={{background:C.input,borderRadius:10,padding:11,border:`1px solid ${C.borderSoft}`}}>
               <div style={{fontSize:9.5,color:C.green,fontWeight:700,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.5px"}}>● Brapi — automático</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                {[{l:"Cotação",v:cotacao?`R$ ${cotacao}`:"—"},{l:"LPA (EPS)",v:lpa?`R$ ${lpa}`:"—"},
-                  {l:"VPA",v:vpa?`R$ ${vpa}`:"—"},{l:"Setor",v:setorNome||"—"},
+                {[{l:"Cotação",v:cotacao?`R$ ${cotacao}`:"—"},{l:"Setor",v:setorNome||"—"},
                   {l:"P/L setor",v:plSetor?`${plSetor}×`:"—"}].map(({l,v})=>(
                   <div key={l}>
                     <div style={{fontSize:9,color:C.muted}}>{l}</div>
@@ -1827,6 +1882,20 @@ function TabPrecoTeto(){
               <div style={{fontSize:10,color:C.yellow,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
                 <Icon name="alert" size={11}/> Confirme no Status Invest — APIs podem ter valores incorretos
               </div>
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+              <Fld label="LPA (R$)" hint={!lpa?"Não veio da API — preencha":undefined}>
+                <input className="op-input" type="number" value={lpa} onChange={e=>{setLpa(e.target.value);setResult(null);}}
+                  placeholder="Lucro/ação" style={iS({border:lpa?`1px solid ${C.green}44`:undefined,background:lpa?C.green+"0A":C.input})}/>
+              </Fld>
+              <Fld label="VPA (R$)" hint={!vpa?"Não veio da API — preencha":undefined}>
+                <input className="op-input" type="number" value={vpa} onChange={e=>{setVpa(e.target.value);setResult(null);}}
+                  placeholder="Patrimônio/ação" style={iS({border:vpa?`1px solid ${C.green}44`:undefined,background:vpa?C.green+"0A":C.input})}/>
+              </Fld>
+            </div>
+            <div style={{marginBottom:10}}>
+              <ExtLink href={`https://statusinvest.com.br/acoes/${ticker.toLowerCase()}`}>Confirmar LPA/VPA no Status Invest</ExtLink>
             </div>
 
             <Fld label="Yield mínimo — Método Bazin (%)">
