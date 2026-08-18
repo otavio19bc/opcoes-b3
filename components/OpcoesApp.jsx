@@ -103,7 +103,7 @@ function decide({iv,ivHist,delta,premioPercent,dias,taxa}){
   else{signals.push({t:"bad",text:`Prêmio ${premioPercent.toFixed(2)}% não bate Selic do período (${sp.toFixed(2)}%)`});score-=1;}
 
   const v=score>=4?"LANÇAR":score>=2?"LANÇAR COM CAUTELA":score>=0?"AGUARDAR":"NÃO LANÇAR";
-  const col=score>=4?"#34D399":score>=2?"#FBBF24":score>=0?"#FB923C":"#F87171";
+  const col=score>=4?C.green:score>=2?C.yellow:score>=0?C.orange:C.red;
   return{verdict:v,color:col,score,signals,sp};
 }
 
@@ -111,20 +111,20 @@ function decide({iv,ivHist,delta,premioPercent,dias,taxa}){
 // DESIGN TOKENS
 // ════════════════════════════════════════════════════════════════════
 const C={
-  bg:"#0B0E14",
-  bgGradient:"radial-gradient(ellipse 1200px 620px at 50% -12%, #161B2C 0%, #0B0E14 55%)",
-  card:"#12161F",
-  border:"#262C39",
-  borderSoft:"#1D2230",
-  accent:"#5B8DEF",
-  accent2:"#7C6CF0",
-  green:"#34D399",
-  yellow:"#FBBF24",
-  orange:"#FB923C",
-  red:"#F87171",
-  text:"#EDEFF3",
-  muted:"#8A94A6",
-  input:"#171B24",
+  bg:"#F3F5F9",
+  bgGradient:"radial-gradient(ellipse 1200px 620px at 50% -12%, #FFFFFF 0%, #F3F5F9 55%)",
+  card:"#FFFFFF",
+  border:"#DCE1E9",
+  borderSoft:"#E8EBF1",
+  accent:"#3563E0",
+  accent2:"#7C3AED",
+  green:"#059669",
+  yellow:"#D97706",
+  orange:"#EA580C",
+  red:"#DC2626",
+  text:"#0F172A",
+  muted:"#64748B",
+  input:"#F7F9FC",
 };
 
 const iS=(extra={})=>({width:"100%",background:C.input,border:`1px solid ${C.border}`,
@@ -177,7 +177,7 @@ function Fld({label,children,hint}){
 
 function Card({children,style={}}){
   return <div className="op-card" style={{background:C.card,border:`1px solid ${C.borderSoft}`,
-    borderRadius:14,padding:18,boxShadow:"0 1px 2px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.18)",...style}}>{children}</div>;
+    borderRadius:14,padding:18,boxShadow:"0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06)",...style}}>{children}</div>;
 }
 
 function SectionTitle({children,color}){
@@ -582,7 +582,7 @@ function TabComparar(){
                   const deltaCol=adelta>=0.25&&adelta<=0.35?C.green:adelta>0.45?C.red:C.yellow;
                   const rnCol=r.rn>=r.sp*1.5?C.green:r.rn>=r.sp?C.yellow:C.red;
                   return(
-                    <tr key={i} style={{background:i%2===0?C.card:"#151a26"}}>
+                    <tr key={i} style={{background:i%2===0?C.card:C.input}}>
                       <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:700,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {r.K.toFixed(2)}</td>
                       <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {r.pv.toFixed(2)}</td>
                       <td style={{padding:"10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontFamily:"var(--font-mono)",
@@ -664,6 +664,44 @@ function calcPosicao(p){
   return{dias,alerta,noc,resultado,resultadoOpcao,lucroAtivo,retorno,diasOperacao};
 }
 
+const MESES_LONGO=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+function mesAnoDe(dataISO){
+  if(!dataISO) return{key:"0000-00",label:"Sem data de lançamento"};
+  const[ano,mes]=dataISO.split("-");
+  return{key:`${ano}-${mes}`,label:`${MESES_LONGO[parseInt(mes,10)-1]} ${ano}`};
+}
+
+function agruparPorMes(lista){
+  const grupos={};
+  for(const p of lista){
+    const{key,label}=mesAnoDe(p.dataLancamento);
+    if(!grupos[key]) grupos[key]={key,label,itens:[]};
+    grupos[key].itens.push(p);
+  }
+  return Object.values(grupos).sort((a,b)=>b.key.localeCompare(a.key));
+}
+
+function MonthGroup({label,count,defaultOpen,children}){
+  const[open,setOpen]=useState(defaultOpen);
+  return(
+    <div style={{marginBottom:8}}>
+      <button onClick={()=>setOpen(o=>!o)} style={{
+        width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",
+        background:C.input,border:`1px solid ${C.borderSoft}`,borderRadius:9,
+        padding:"8px 12px",cursor:"pointer",marginBottom:open?8:0
+      }}>
+        <span style={{fontSize:11.5,fontWeight:700,color:C.text}}>{label}</span>
+        <span style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:10.5,color:C.muted,background:C.card,borderRadius:10,padding:"1px 7px"}}>{count}</span>
+          <Icon name="chevron-right" size={13} style={{color:C.muted,transform:open?"rotate(90deg)":"rotate(0deg)",transition:"transform 0.15s"}}/>
+        </span>
+      </button>
+      {open&&<div style={{display:"flex",flexDirection:"column",gap:6}}>{children}</div>}
+    </div>
+  );
+}
+
 function StatusSelect({value,onChange}){
   const color=STATUS_COLORS[value]||C.muted;
   const arrow=encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><polyline points='6 9 12 15 18 9'/></svg>`);
@@ -684,90 +722,64 @@ function PosicaoCard({p,editando,editForm,onIniciarEdicao,onCancelarEdicao,onSal
   const{dias,alerta,noc,resultado,lucroAtivo,retorno,diasOperacao}=calcPosicao(p);
   const fechada=p.status!=="Aberta";
   return(
-    <Card style={{border:`1px solid ${alerta?C.red+"44":C.borderSoft}`}}>
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-        <div>
-          <div style={{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}}>
-            <span style={{fontSize:18,fontWeight:800,color:C.text,letterSpacing:"-0.01em"}}>{p.ativo}</span>
-            {p.codigoOpcao&&<span style={{fontSize:13,fontWeight:600,color:C.muted,fontFamily:"var(--font-mono)"}}>/ {p.codigoOpcao}</span>}
+    <Card style={{border:`1px solid ${alerta?C.red+"44":C.borderSoft}`,padding:12}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",minWidth:0}}>
+          <div style={{display:"flex",alignItems:"baseline",gap:4,flexWrap:"wrap"}}>
+            <span style={{fontSize:14,fontWeight:800,color:C.text,letterSpacing:"-0.01em"}}>{p.ativo}</span>
+            {p.codigoOpcao&&<span style={{fontSize:10.5,fontWeight:600,color:C.muted,fontFamily:"var(--font-mono)"}}>/ {p.codigoOpcao}</span>}
           </div>
-          <div style={{display:"flex",gap:6,alignItems:"center",marginTop:5,flexWrap:"wrap"}}>
-            <Badge color={p.tipo==="call"?C.accent:"#A78BFA"}>{p.tipo==="call"?"Call":"Put"}</Badge>
-            {editando?(
-              <Badge color={STATUS_COLORS[p.status]||C.muted}>{p.status||"Aberta"}</Badge>
-            ):(
-              <StatusSelect value={p.status||"Aberta"} onChange={s=>onStatusChange(p.id,s)}/>
-            )}
-          </div>
+          <Badge color={p.tipo==="call"?C.accent:C.accent2}>{p.tipo==="call"?"Call":"Put"}</Badge>
+          {editando?(
+            <Badge color={STATUS_COLORS[p.status]||C.muted}>{p.status||"Aberta"}</Badge>
+          ):(
+            <StatusSelect value={p.status||"Aberta"} onChange={s=>onStatusChange(p.id,s)}/>
+          )}
         </div>
-        <div style={{display:"flex",gap:6,flexShrink:0}}>
-          <Btn onClick={()=>editando?onCancelarEdicao():onIniciarEdicao(p)} variant="secondary" style={{padding:"6px 10px",fontSize:11,display:"flex",alignItems:"center",gap:5}}>
-            <Icon name={editando?"x":"edit"} size={12}/> {editando?"Fechar":"Editar"}
+        <div style={{display:"flex",gap:5,flexShrink:0}}>
+          <Btn onClick={()=>editando?onCancelarEdicao():onIniciarEdicao(p)} variant="secondary" style={{padding:"4px 8px",fontSize:10,display:"flex",alignItems:"center",gap:4}}>
+            <Icon name={editando?"x":"edit"} size={11}/> {editando?"Fechar":"Editar"}
           </Btn>
-          <Btn onClick={()=>onRemover(p.id)} variant="danger" style={{padding:"6px 10px",fontSize:11}}>Remover</Btn>
+          <Btn onClick={()=>onRemover(p.id)} variant="danger" style={{padding:"4px 8px",fontSize:10}}>Remover</Btn>
         </div>
       </div>
 
-      {fechada&&(
-        <div style={{marginTop:12,padding:"10px 12px",borderRadius:8,
-          background:(resultado>=0?C.green:C.red)+"14",border:`1px solid ${(resultado>=0?C.green:C.red)}33`}}>
-          <div style={{fontSize:19,fontWeight:800,color:resultado>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>
-            R$ {resultado.toFixed(2)}
-          </div>
-          <div style={{fontSize:11,color:C.muted,marginTop:2}}>
-            {retorno.toFixed(2)}% de retorno{diasOperacao!=null&&<> · {diasOperacao} dia{diasOperacao===1?"":"s"} de operação</>}
-          </div>
-        </div>
-      )}
-
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(80px,1fr))",gap:8,marginTop:12}}>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontSize:9,color:C.muted,fontWeight:600}}>STRIKE</div>
-          <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {p.strike.toFixed(2)}</div>
-        </div>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontSize:9,color:C.muted,fontWeight:600}}>QTD.</div>
-          <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>{p.qtd}</div>
-        </div>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontSize:9,color:C.muted,fontWeight:600}}>PRÊMIO/AÇÃO</div>
-          <div style={{fontSize:13,fontWeight:600,color:C.green,fontFamily:"var(--font-mono)"}}>R$ {p.premio.toFixed(2)}</div>
-        </div>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontSize:9,color:C.muted,fontWeight:600}}>NOCIONAL</div>
-          <div style={{fontSize:13,fontWeight:600,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {noc.toFixed(0)}</div>
-        </div>
+      <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",marginTop:8}}>
+        <div style={{fontSize:11,color:C.muted}}>Strike <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {p.strike.toFixed(2)}</span></div>
+        <div style={{fontSize:11,color:C.muted}}>Qtd. <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>{p.qtd}</span></div>
+        <div style={{fontSize:11,color:C.muted}}>Prêmio/ação <span style={{color:C.green,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {p.premio.toFixed(2)}</span></div>
+        <div style={{fontSize:11,color:C.muted}}>Nocional <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {noc.toFixed(0)}</span></div>
         {!fechada&&(
           <>
-            <div style={{textAlign:"center"}}>
-              <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RESULTADO LÍQ.</div>
-              <div style={{fontSize:13,fontWeight:600,color:resultado>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>R$ {resultado.toFixed(2)}</div>
-              {lucroAtivo!==0&&<div style={{fontSize:8.5,color:C.muted,fontFamily:"var(--font-mono)"}}>ativo: {lucroAtivo>=0?"+":""}{lucroAtivo.toFixed(2)}</div>}
-            </div>
-            <div style={{textAlign:"center"}}>
-              <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RETORNO</div>
-              <div style={{fontSize:13,fontWeight:600,color:retorno>=0?C.yellow:C.red,fontFamily:"var(--font-mono)"}}>{retorno.toFixed(2)}%</div>
-            </div>
-            <div style={{textAlign:"center"}}>
-              <div style={{fontSize:9,color:C.muted,fontWeight:600}}>VENCIMENTO</div>
-              <div style={{fontSize:13,fontWeight:600,color:alerta?C.red:dias<=10?C.yellow:C.text,fontFamily:"var(--font-mono)",
-                display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-                {dias}d {alerta&&<Icon name="alert" size={12}/>}
-              </div>
-              <div style={{fontSize:9,color:C.muted}}>{p.dataVenc}</div>
+            <div style={{fontSize:11,color:C.muted}}>Result. líq. <span style={{color:resultado>=0?C.green:C.red,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {resultado.toFixed(2)}</span></div>
+            <div style={{fontSize:11,color:C.muted}}>Retorno <span style={{color:retorno>=0?C.yellow:C.red,fontWeight:600,fontFamily:"var(--font-mono)"}}>{retorno.toFixed(2)}%</span></div>
+            <div style={{fontSize:11,color:C.muted,display:"flex",alignItems:"center",gap:3}}>
+              Vence <span style={{color:alerta?C.red:dias<=10?C.yellow:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>{dias}d</span>
+              {alerta&&<Icon name="alert" size={11} style={{color:C.red}}/>}
             </div>
           </>
         )}
       </div>
 
+      {fechada&&(
+        <div style={{marginTop:8,display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
+          <span style={{fontSize:15,fontWeight:800,color:resultado>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>
+            R$ {resultado.toFixed(2)}
+          </span>
+          <span style={{fontSize:10.5,color:C.muted}}>
+            {retorno.toFixed(2)}% de retorno{diasOperacao!=null&&<> · {diasOperacao} dia{diasOperacao===1?"":"s"} de operação</>}
+          </span>
+        </div>
+      )}
+
       {p.observacoes&&!editando&&(
-        <div style={{marginTop:10,fontSize:11,color:C.muted,fontStyle:"italic"}}>{p.observacoes}</div>
+        <div style={{marginTop:8,fontSize:10.5,color:C.muted,fontStyle:"italic"}}>{p.observacoes}</div>
       )}
 
       {alerta&&(
-        <div style={{marginTop:10,padding:"8px 10px",background:C.red+"0F",borderRadius:8,fontSize:11,color:C.red,
+        <div style={{marginTop:8,padding:"6px 9px",background:C.red+"0F",borderRadius:7,fontSize:10.5,color:C.red,
           display:"flex",alignItems:"center",gap:6}}>
-          <Icon name="alert" size={13}/> Vence em {dias} dia(s) — decida: fechar, rolar ou deixar expirar
+          <Icon name="alert" size={12}/> Vence em {dias} dia(s) — decida: fechar, rolar ou deixar expirar
         </div>
       )}
 
@@ -927,7 +939,7 @@ function TabPosicoes(){
   };
 
   const totalNocional=posicoes.reduce((acc,p)=>acc+calcPosicao(p).noc,0);
-  const totalPremio=posicoes.reduce((acc,p)=>acc+p.premio*p.qtd,0);
+  const totalPremio=posicoes.reduce((acc,p)=>acc+calcPosicao(p).resultadoOpcao,0);
   const posicoesAbertas=posicoes.filter(p=>p.status==="Aberta");
   const posicoesEncerradas=posicoes.filter(p=>p.status!=="Aberta");
 
@@ -958,7 +970,7 @@ function TabPosicoes(){
         <div>
           <div style={{fontSize:16,fontWeight:700,color:C.text}}>Posições</div>
           <div style={{fontSize:12,color:C.muted}}>
-            {posicoes.length} posição(ões) · Nocional total: <span style={{color:C.accent,fontFamily:"var(--font-mono)"}}>R$ {totalNocional.toFixed(0)}</span> · Prêmio recebido: <span style={{color:C.green,fontFamily:"var(--font-mono)"}}>R$ {totalPremio.toFixed(2)}</span>
+            {posicoes.length} posição(ões) · Nocional total: <span style={{color:C.accent,fontFamily:"var(--font-mono)"}}>R$ {totalNocional.toFixed(0)}</span> · Prêmio líquido: <span style={{color:C.green,fontFamily:"var(--font-mono)"}}>R$ {totalPremio.toFixed(2)}</span>
           </div>
         </div>
         <Btn onClick={()=>setShowForm(!showForm)} variant={showForm?"secondary":"primary"}>
@@ -1009,20 +1021,22 @@ function TabPosicoes(){
               {lista.length===0?(
                 <div style={{fontSize:12,color:C.muted,padding:"14px 0"}}>Nenhuma posição {titulo==="Abertas"?"aberta":"encerrada"}.</div>
               ):(
-                <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                  {lista.map(p=>(
-                    <PosicaoCard key={p.id} p={p}
-                      editando={editandoId===p.id}
-                      editForm={editandoId===p.id?editForm:null}
-                      onIniciarEdicao={iniciarEdicao}
-                      onCancelarEdicao={cancelarEdicao}
-                      onSalvarEdicao={salvarEdicao}
-                      onSetEF={setEF}
-                      onStatusChange={atualizarStatus}
-                      onRemover={remover}
-                    />
-                  ))}
-                </div>
+                agruparPorMes(lista).map((grupo,i)=>(
+                  <MonthGroup key={grupo.key} label={grupo.label} count={grupo.itens.length} defaultOpen={i===0}>
+                    {grupo.itens.map(p=>(
+                      <PosicaoCard key={p.id} p={p}
+                        editando={editandoId===p.id}
+                        editForm={editandoId===p.id?editForm:null}
+                        onIniciarEdicao={iniciarEdicao}
+                        onCancelarEdicao={cancelarEdicao}
+                        onSalvarEdicao={salvarEdicao}
+                        onSetEF={setEF}
+                        onStatusChange={atualizarStatus}
+                        onRemover={remover}
+                      />
+                    ))}
+                  </MonthGroup>
+                ))
               )}
             </div>
           ))}
@@ -1035,7 +1049,7 @@ function TabPosicoes(){
           <SectionTitle>Exposição Consolidada</SectionTitle>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
             {[{titulo:"Call Coberta",cor:C.accent,d:expCall},
-              {titulo:"Put Vendida",cor:"#A78BFA",d:expPut},
+              {titulo:"Put Vendida",cor:C.accent2,d:expPut},
               {titulo:"Consolidado",cor:C.text,d:expTotal}].map(({titulo,cor,d})=>(
               <div key={titulo} style={{background:C.input,borderRadius:10,padding:14,border:`1px solid ${C.borderSoft}`}}>
                 <div style={{fontSize:12,fontWeight:700,color:cor,marginBottom:10}}>{titulo}</div>
@@ -1428,7 +1442,7 @@ function TabPerformance(){
           </thead>
           <tbody>
             {data.map((d,i)=>(
-              <tr key={i} style={{background:i%2===0?C.card:"#151a26"}}>
+              <tr key={i} style={{background:i%2===0?C.card:C.input}}>
                 <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:600,color:C.text}}>{d.mes}/{ano}</td>
                 <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontFamily:"var(--font-mono)",
                   color:!d.hasData?C.muted:d.resultado>=0?C.green:C.red,fontWeight:d.hasData?700:400}}>
@@ -1474,7 +1488,7 @@ function TabPerformance(){
                 const w=Math.abs(a.resultado)/maxAtivoAbs*100;
                 const col=a.resultado>=0?C.green:C.red;
                 return(
-                  <tr key={a.ativo} style={{background:i%2===0?C.card:"#151a26"}}>
+                  <tr key={a.ativo} style={{background:i%2===0?C.card:C.input}}>
                     <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:700,color:C.text}}>{a.ativo}</td>
                     <td style={{padding:"8px 10px",textAlign:"center",border:`1px solid ${C.borderSoft}`,fontWeight:700,color:col,fontFamily:"var(--font-mono)"}}>
                       R$ {a.resultado.toFixed(2)}

@@ -33,7 +33,7 @@ a {
 }
 .op-input:hover,
 .op-select:hover {
-  border-color: #2c3444;
+  border-color: #b9c0cc;
 }
 .op-input:focus,
 .op-select:focus {
@@ -63,8 +63,8 @@ a {
   transition: color 0.15s ease, background 0.15s ease;
 }
 .op-tab:hover {
-  color: #edeff3 !important;
-  background: rgba(255, 255, 255, 0.035);
+  color: #0f172a !important;
+  background: rgba(15, 23, 42, 0.045);
 }
 
 /* Cards */
@@ -81,9 +81,9 @@ a {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #232935;
+  background: #cbd2db;
   border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2c3444;
+  background: #aeb6c2;
 }

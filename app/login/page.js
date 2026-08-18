@@ -4,16 +4,16 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const C = {
-  bgGradient: "radial-gradient(ellipse 1200px 620px at 50% -12%, #161B2C 0%, #0B0E14 55%)",
-  card: "#12161F",
-  border: "#262C39",
-  borderSoft: "#1D2230",
-  accent: "#5B8DEF",
-  green: "#34D399",
-  red: "#F87171",
-  text: "#EDEFF3",
-  muted: "#8A94A6",
-  input: "#171B24",
+  bgGradient: "radial-gradient(ellipse 1200px 620px at 50% -12%, #FFFFFF 0%, #F3F5F9 55%)",
+  card: "#FFFFFF",
+  border: "#DCE1E9",
+  borderSoft: "#E8EBF1",
+  accent: "#3563E0",
+  green: "#059669",
+  red: "#DC2626",
+  text: "#0F172A",
+  muted: "#64748B",
+  input: "#F7F9FC",
 };
 
 function ZapIcon({ size = 20 }) {
@@ -86,7 +86,7 @@ export default function LoginPage() {
           padding: 34,
           width: "100%",
           maxWidth: 360,
-          boxShadow: "0 1px 2px rgba(0,0,0,0.2), 0 16px 40px rgba(0,0,0,0.35)",
+          boxShadow: "0 1px 2px rgba(15,23,42,0.05), 0 16px 40px rgba(15,23,42,0.12)",
         }}
       >
         <div style={{ textAlign: "center", marginBottom: 22 }}>
