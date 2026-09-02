@@ -1112,6 +1112,7 @@ function TabRolagem(){
     const custRecompra=pr*q;
     const premioRecebidoOriginal=p0*q;
     const lucroJaCapturado=premioRecebidoOriginal-custRecompra;
+    const strikeFavoravel=tipo==="call"?KN>=K0:KN<=K0;
 
     const opcoes=[];
     for(let i=0;i<3;i++){
@@ -1125,12 +1126,11 @@ function TabRolagem(){
       const creditoLiq=pN*q-custRecompra;
       const noc=tipo==="call"?S*q:KN*q;
       const retorno=(creditoLiq/noc)*100;
-      const sp=selicPeriodo(r,dias);
       opcoes.push({venc:novasVenc[i],dias,pN,ivN:ivN*100,delta:gN.delta,probOTM:gN.probOTM,
-                   creditoLiq,retorno,sp,noc,theta:gN.theta});
+                   creditoLiq,retorno,noc,theta:gN.theta});
     }
 
-    setResult({custRecompra,lucroJaCapturado,premioRecebidoOriginal,opcoes,q,K0,KN,p0,pr,S});
+    setResult({custRecompra,lucroJaCapturado,premioRecebidoOriginal,opcoes,q,K0,KN,p0,pr,S,strikeFavoravel});
   };
 
   return(
@@ -1205,7 +1205,7 @@ function TabRolagem(){
               ):(
                 <div style={{display:"flex",flexDirection:"column",gap:10}}>
                   {result.opcoes.map((o,i)=>{
-                    const vale=o.creditoLiq>0&&o.retorno>=o.sp;
+                    const vale=o.creditoLiq>0&&result.strikeFavoravel;
                     return(
                       <div key={i} style={{background:vale?C.green+"08":C.red+"08",
                         border:`1px solid ${vale?C.green+"40":C.red+"2E"}`,borderRadius:12,padding:14}}>
@@ -1213,13 +1213,10 @@ function TabRolagem(){
                           <div style={{fontWeight:700,color:C.text}}>Opção {i+1} — {o.venc} ({o.dias} dias)</div>
                           <Badge color={vale?C.green:C.red}>{vale?"VALE ROLAR":"NÃO VALE"}</Badge>
                         </div>
-                        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
                           <Metric label="Crédito líq." value={`R$ ${o.creditoLiq.toFixed(2)}`} hi={o.creditoLiq>0?C.green:C.red}/>
                           <Metric label="Retorno" value={`${o.retorno.toFixed(2)}%`}
-                            hi={o.retorno>=o.sp*1.5?C.green:o.retorno>=o.sp?C.yellow:C.red}/>
-                          <Metric label="vs Selic" value={`${(o.retorno/o.sp).toFixed(1)}×`}
-                            sub={`Selic: ${o.sp.toFixed(2)}%`}
-                            hi={o.retorno>=o.sp?C.green:C.red}/>
+                            hi={o.retorno>=0?C.green:C.red}/>
                           <Metric label="Delta novo" value={(o.delta*100).toFixed(1)}
                             hi={Math.abs(o.delta)>=0.25&&Math.abs(o.delta)<=0.35?C.green:C.yellow}/>
                           <Metric label="Prob. OTM" value={`${o.probOTM.toFixed(0)}%`}
