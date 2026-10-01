@@ -67,6 +67,58 @@ function diasAte(data){
   return Math.max(0,Math.round((new Date(data)-hoje)/86400000));
 }
 
+// Domingo de Páscoa (algoritmo de Meeus/Jones/Butcher) — base dos feriados móveis.
+function pascoa(ano){
+  const a=ano%19,b=Math.floor(ano/100),c=ano%100;
+  const d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3);
+  const h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4;
+  const l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);
+  const mes=Math.floor((h+l-7*m+114)/31),dia=((h+l-7*m+114)%31)+1;
+  return new Date(ano,mes-1,dia);
+}
+
+const _feriadosCache={};
+function feriadosNacionais(ano){
+  if(_feriadosCache[ano]) return _feriadosCache[ano];
+  const add=(base,dias)=>{const d=new Date(base);d.setDate(d.getDate()+dias);return d;};
+  const dom=pascoa(ano);
+  const datas=[
+    new Date(ano,0,1),   // Confraternização Universal
+    new Date(ano,3,21),  // Tiradentes
+    new Date(ano,4,1),   // Dia do Trabalho
+    new Date(ano,8,7),   // Independência
+    new Date(ano,9,12),  // Nossa Senhora Aparecida
+    new Date(ano,10,2),  // Finados
+    new Date(ano,10,15), // Proclamação da República
+    new Date(ano,11,25), // Natal
+    add(dom,-48),        // Segunda de Carnaval (B3 não opera)
+    add(dom,-47),        // Terça de Carnaval
+    add(dom,-2),         // Sexta-feira Santa
+    add(dom,60),         // Corpus Christi
+  ];
+  const set=new Set(datas.map(d=>d.toISOString().split("T")[0]));
+  _feriadosCache[ano]=set;
+  return set;
+}
+
+// Dias úteis de pregão da B3 entre hoje e `data` (seg-sex, exclui feriados nacionais).
+function diasUteisAte(data){
+  if(!data) return 0;
+  const hoje=new Date(); hoje.setHours(0,0,0,0);
+  const alvo=new Date(data+"T00:00:00");
+  if(alvo<=hoje) return 0;
+  let count=0;
+  const cursor=new Date(hoje);
+  while(cursor<alvo){
+    cursor.setDate(cursor.getDate()+1);
+    const dow=cursor.getDay();
+    if(dow!==0&&dow!==6&&!feriadosNacionais(cursor.getFullYear()).has(cursor.toISOString().split("T")[0])){
+      count++;
+    }
+  }
+  return count;
+}
+
 // ════════════════════════════════════════════════════════════════════
 // API
 // ════════════════════════════════════════════════════════════════════
@@ -333,6 +385,7 @@ function TabAnalisar(){
   const [loading,setLoading]=useState(false);
 
   const dias=diasAte(dataVenc);
+  const diasUteis=diasUteisAte(dataVenc);
 
   const calcular=()=>{
     setLoading(true);
@@ -377,7 +430,7 @@ function TabAnalisar(){
                 </div>
               </Fld>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                <Fld label="Vencimento" hint={dias>0?`${dias} dias`:""}>
+                <Fld label="Vencimento" hint={diasUteis>0?`${diasUteis} dias úteis`:""}>
                   <input className="op-input" type="date" value={dataVenc} onChange={e=>setDataVenc(e.target.value)} style={iS()}/>
                 </Fld>
                 <Fld label="Quantidade">
@@ -496,6 +549,7 @@ function TabComparar(){
   const [results,setResults]=useState([]);
 
   const dias=diasAte(dataVenc);
+  const diasUteis=diasUteisAte(dataVenc);
 
   const calcular=()=>{
     const S=parseFloat(preco),hv=parseFloat(histVol)/100,r=parseFloat(taxa),q=parseInt(qtd),T=dias/365;
@@ -530,7 +584,7 @@ function TabComparar(){
           extra={
             <div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-                <Fld label="Vencimento" hint={dias>0?`${dias} dias`:""}>
+                <Fld label="Vencimento" hint={diasUteis>0?`${diasUteis} dias úteis`:""}>
                   <input className="op-input" type="date" value={dataVenc} onChange={e=>setDataVenc(e.target.value)} style={iS()}/>
                 </Fld>
                 <Fld label="Quantidade">
@@ -649,7 +703,7 @@ function diasEntre(inicio,fim){
 }
 
 function calcPosicao(p){
-  const dias=diasAte(p.dataVenc);
+  const dias=diasUteisAte(p.dataVenc);
   const alerta=dias<=5&&p.status==="Aberta";
   const noc=p.tipo==="call"?p.precoEntrada*p.qtd:p.strike*p.qtd;
   const recompra=(p.recompra===""||p.recompra==null)?0:parseFloat(p.recompra);
@@ -754,7 +808,7 @@ function PosicaoCard({p,editando,editForm,onIniciarEdicao,onCancelarEdicao,onSal
             <div style={{fontSize:11,color:C.muted}}>Result. líq. <span style={{color:resultado>=0?C.green:C.red,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {resultado.toFixed(2)}</span></div>
             <div style={{fontSize:11,color:C.muted}}>Retorno <span style={{color:retorno>=0?C.yellow:C.red,fontWeight:600,fontFamily:"var(--font-mono)"}}>{retorno.toFixed(2)}%</span></div>
             <div style={{fontSize:11,color:C.muted,display:"flex",alignItems:"center",gap:3}}>
-              Vence <span style={{color:alerta?C.red:dias<=10?C.yellow:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>{dias}d</span>
+              Vence <span style={{color:alerta?C.red:dias<=10?C.yellow:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>{dias}du</span>
               {alerta&&<Icon name="alert" size={11} style={{color:C.red}}/>}
             </div>
           </>
@@ -779,7 +833,7 @@ function PosicaoCard({p,editando,editForm,onIniciarEdicao,onCancelarEdicao,onSal
       {alerta&&(
         <div style={{marginTop:8,padding:"6px 9px",background:C.red+"0F",borderRadius:7,fontSize:10.5,color:C.red,
           display:"flex",alignItems:"center",gap:6}}>
-          <Icon name="alert" size={12}/> Vence em {dias} dia(s) — decida: fechar, rolar ou deixar expirar
+          <Icon name="alert" size={12}/> Vence em {dias} dia(s) útil(eis) — decida: fechar, rolar ou deixar expirar
         </div>
       )}
 
@@ -1126,7 +1180,8 @@ function TabRolagem(){
       const creditoLiq=pN*q-custRecompra;
       const noc=tipo==="call"?S*q:KN*q;
       const retorno=(creditoLiq/noc)*100;
-      opcoes.push({venc:novasVenc[i],dias,pN,ivN:ivN*100,delta:gN.delta,probOTM:gN.probOTM,
+      const diasUteis=diasUteisAte(novasVenc[i]);
+      opcoes.push({venc:novasVenc[i],dias,diasUteis,pN,ivN:ivN*100,delta:gN.delta,probOTM:gN.probOTM,
                    creditoLiq,retorno,noc,theta:gN.theta});
     }
 
@@ -1210,7 +1265,7 @@ function TabRolagem(){
                       <div key={i} style={{background:vale?C.green+"08":C.red+"08",
                         border:`1px solid ${vale?C.green+"40":C.red+"2E"}`,borderRadius:12,padding:14}}>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-                          <div style={{fontWeight:700,color:C.text}}>Opção {i+1} — {o.venc} ({o.dias} dias)</div>
+                          <div style={{fontWeight:700,color:C.text}}>Opção {i+1} — {o.venc} ({o.diasUteis} dias úteis)</div>
                           <Badge color={vale?C.green:C.red}>{vale?"VALE ROLAR":"NÃO VALE"}</Badge>
                         </div>
                         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
