@@ -6,25 +6,33 @@ create extension if not exists pgcrypto;
 
 -- ── posições ────────────────────────────────────────────────────────
 create table if not exists public.posicoes (
-  id             uuid primary key default gen_random_uuid(),
-  user_id        uuid not null default auth.uid() references auth.users(id) on delete cascade,
-  ativo          text not null,
-  tipo           text not null check (tipo in ('call','put')),
-  codigo         text,
-  data_lanc      date,
-  data_venc      date,
-  data_enc       date,
-  preco_entrada  numeric not null,
-  preco_saida    numeric,
-  qtd            integer not null,
-  premio         numeric not null,
-  strike         numeric not null,
-  recompra       numeric,
-  corretagem     numeric not null default 0,
-  status         text not null default 'Aberta' check (status in ('Aberta','Encerrada','Exercida','Rolada')),
-  obs            text,
-  created_at     timestamptz not null default now()
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  ativo            text not null,
+  tipo             text not null check (tipo in ('call','put','bull_put_spread','bear_call_spread')),
+  codigo           text,
+  data_lanc        date,
+  data_venc        date,
+  data_enc         date,
+  preco_entrada    numeric not null,
+  preco_saida      numeric,
+  qtd              integer not null,
+  premio           numeric not null,
+  strike           numeric not null,
+  strike_protecao  numeric,
+  premio_protecao  numeric,
+  recompra         numeric,
+  corretagem       numeric not null default 0,
+  status           text not null default 'Aberta' check (status in ('Aberta','Encerrada','Exercida','Rolada')),
+  obs              text,
+  created_at       timestamptz not null default now()
 );
+
+-- Migração: já existia a tabela sem essas colunas/valores de tipo — adiciona sem perder dados.
+alter table public.posicoes add column if not exists strike_protecao numeric;
+alter table public.posicoes add column if not exists premio_protecao numeric;
+alter table public.posicoes drop constraint if exists posicoes_tipo_check;
+alter table public.posicoes add constraint posicoes_tipo_check check (tipo in ('call','put','bull_put_spread','bear_call_spread'));
 
 create index if not exists posicoes_user_id_idx on public.posicoes(user_id);
 

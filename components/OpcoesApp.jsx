@@ -301,7 +301,7 @@ function EmptyState({icon,title,desc}){
 // ════════════════════════════════════════════════════════════════════
 // SHARED ATIVO FETCHER
 // ════════════════════════════════════════════════════════════════════
-function AtivoFetcher({ativo,onAtivo,preco,onPreco,histVol,onHistVol,taxa,onTaxa,tipo,onTipo,extra}){
+function AtivoFetcher({ativo,onAtivo,preco,onPreco,histVol,onHistVol,taxa,onTaxa,tipo,onTipo,extra,tipoOptions}){
   const [status,setStatus]=useState("idle");
 
   const buscar=useCallback(async(tick)=>{
@@ -329,8 +329,8 @@ function AtivoFetcher({ativo,onAtivo,preco,onPreco,histVol,onHistVol,taxa,onTaxa
         </Fld>
         <Fld label="Tipo">
           <select className="op-select" value={tipo} onChange={e=>onTipo(e.target.value)} style={iS()}>
-            <option value="call">Call</option>
-            <option value="put">Put</option>
+            {(tipoOptions||[{value:"call",label:"Call"},{value:"put",label:"Put"}]).map(o=>
+              <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </Fld>
       </div>
@@ -379,6 +379,8 @@ function TabAnalisar(){
   const [taxa,setTaxa]=useState("0.1400");
   const [strike,setStrike]=useState("");
   const [premio,setPremio]=useState("");
+  const [strikeProtecao,setStrikeProtecao]=useState("");
+  const [premioProtecao,setPremioProtecao]=useState("");
   const [dataVenc,setDataVenc]=useState(defaultVenc);
   const [qtd,setQtd]=useState("100");
   const [result,setResult]=useState(null);
@@ -386,12 +388,39 @@ function TabAnalisar(){
 
   const dias=diasAte(dataVenc);
   const diasUteis=diasUteisAte(dataVenc);
+  const souSpread=isSpreadTipo(tipo);
 
   const calcular=()=>{
     setLoading(true);
     setTimeout(()=>{
-      const S=parseFloat(preco),K=parseFloat(strike),pv=parseFloat(premio);
-      const hv=parseFloat(histVol)/100,r=parseFloat(taxa),q=parseInt(qtd),T=dias/365;
+      const S=parseFloat(preco),hv=parseFloat(histVol)/100,r=parseFloat(taxa),q=parseInt(qtd),T=dias/365;
+
+      if(souSpread){
+        const Kv=parseFloat(strike),Pv=parseFloat(premio);
+        const Kp=parseFloat(strikeProtecao),Pp=parseFloat(premioProtecao);
+        if(!S||!Kv||!Pv||!Kp||!Pp||!dias||!hv){alert("Preencha todos os campos.");setLoading(false);return;}
+        const optType=tipo==="bull_put_spread"?"put":"call";
+        const iv=impliedVol({S,K:Kv,T,r,marketPrice:Pv,type:optType});
+        if(!iv){alert("Não foi possível calcular IV da ponta vendida.");setLoading(false);return;}
+        const g=bs({S,K:Kv,T,r,sigma:iv,type:optType});
+        const creditoLiquido=Pv-Pp;
+        const creditoTotal=creditoLiquido*q;
+        const largura=Math.abs(Kv-Kp);
+        const noc=largura*q;
+        const perdaMaxima=(largura-creditoLiquido)*q;
+        const retornoSobreMargem=noc?(creditoTotal/noc)*100:0;
+        const pontoEquilibrio=tipo==="bull_put_spread"?Kv-creditoLiquido:Kv+creditoLiquido;
+        const probLucroMax=g.probOTM;
+        const riscoRetorno=creditoTotal>0?perdaMaxima/creditoTotal:null;
+        const dec=decide({iv:iv*100,ivHist:hv*100,delta:g.delta,premioPercent:retornoSobreMargem,dias,taxa:r});
+        setResult({souSpread:true,tipoSpread:tipo,iv:iv*100,g,noc,q,S,Kv,Kp,Pv,Pp,
+          creditoLiquido,creditoTotal,largura,perdaMaxima,retornoSobreMargem,pontoEquilibrio,
+          probLucroMax,riscoRetorno,dec,dias,taxa:r,hv:hv*100});
+        setLoading(false);
+        return;
+      }
+
+      const K=parseFloat(strike),pv=parseFloat(premio);
       if(!S||!K||!pv||!dias||!hv){alert("Preencha todos os campos.");setLoading(false);return;}
       const iv=impliedVol({S,K,T,r,marketPrice:pv,type:tipo});
       if(!iv){alert("Não foi possível calcular IV.");setLoading(false);return;}
@@ -401,7 +430,7 @@ function TabAnalisar(){
       const rn=(pv*q/noc)*100;
       const peq=tipo==="call"?K+pv:K-pv;
       const dec=decide({iv:iv*100,ivHist:hv*100,delta:g.delta,premioPercent:pp,dias,taxa:r});
-      setResult({iv:iv*100,g,pp,noc,rn,peq,dec,q,pv,S,K,tipo,dias,taxa:r,hv:hv*100});
+      setResult({souSpread:false,iv:iv*100,g,pp,noc,rn,peq,dec,q,pv,S,K,tipo,dias,taxa:r,hv:hv*100});
       setLoading(false);
     },200);
   };
@@ -415,20 +444,42 @@ function TabAnalisar(){
         <AtivoFetcher ativo={ativo} onAtivo={setAtivo} preco={preco} onPreco={setPreco}
           histVol={histVol} onHistVol={setHistVol} taxa={taxa} onTaxa={setTaxa}
           tipo={tipo} onTipo={setTipo}
+          tipoOptions={[
+            {value:"call",label:"Call"},
+            {value:"put",label:"Put"},
+            {value:"bull_put_spread",label:"Bull Put Spread"},
+            {value:"bear_call_spread",label:"Bear Call Spread"},
+          ]}
           extra={
             <div>
-              <Fld label="Strike">
+              <Fld label={souSpread?"Strike vendido":"Strike"}>
                 <div style={{position:"relative"}}>
                   <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>R$</span>
                   <input className="op-input" type="number" value={strike} onChange={e=>setStrike(e.target.value)} placeholder="45.05" style={iS({paddingLeft:26})}/>
                 </div>
               </Fld>
-              <Fld label="Prêmio atual — bid no Profit">
+              <Fld label={souSpread?"Prêmio recebido (ponta vendida) — bid no Profit":"Prêmio atual — bid no Profit"}>
                 <div style={{position:"relative"}}>
                   <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>R$</span>
                   <input className="op-input" type="number" value={premio} onChange={e=>setPremio(e.target.value)} placeholder="1.44" style={iS({paddingLeft:26})}/>
                 </div>
               </Fld>
+              {souSpread&&(
+                <>
+                  <Fld label="Strike proteção">
+                    <div style={{position:"relative"}}>
+                      <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>R$</span>
+                      <input className="op-input" type="number" value={strikeProtecao} onChange={e=>setStrikeProtecao(e.target.value)} placeholder="42.00" style={iS({paddingLeft:26})}/>
+                    </div>
+                  </Fld>
+                  <Fld label="Prêmio pago pela proteção — ask no Profit">
+                    <div style={{position:"relative"}}>
+                      <span style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)",color:C.muted,fontSize:12}}>R$</span>
+                      <input className="op-input" type="number" value={premioProtecao} onChange={e=>setPremioProtecao(e.target.value)} placeholder="0.60" style={iS({paddingLeft:26})}/>
+                    </div>
+                  </Fld>
+                </>
+              )}
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 <Fld label="Vencimento" hint={diasUteis>0?`${diasUteis} dias úteis`:""}>
                   <input className="op-input" type="date" value={dataVenc} onChange={e=>setDataVenc(e.target.value)} style={iS()}/>
@@ -443,6 +494,7 @@ function TabAnalisar(){
           {loading?"Calculando...":"Analisar →"}
         </Btn>
         <Btn onClick={()=>{setAtivo("PETR4");setTipo("call");setStrike("45.05");setPremio("1.44");
+          setStrikeProtecao("");setPremioProtecao("");
           setDataVenc(defaultVenc);setQtd("100");setPreco("41.81");setHistVol("27");setResult(null);}}
           variant="secondary" style={{width:"100%",marginTop:6}}>
           Carregar exemplo PETR4
@@ -453,6 +505,73 @@ function TabAnalisar(){
         {!result?(
           <EmptyState icon="zap" title="Preencha os dados ao lado"
             desc="Vol. histórica calculada automaticamente · IV via Black-Scholes · Comparação vs Selic do período"/>
+        ):result.souSpread?(
+          <>
+            {/* Verdict */}
+            <div style={{background:vc+"12",border:`1px solid ${vc}44`,borderRadius:14,padding:"16px 20px",
+              marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between",
+              boxShadow:`0 8px 24px ${vc}14`}}>
+              <div>
+                <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.6px",fontWeight:600}}>Decisão</div>
+                <div style={{fontSize:25,fontWeight:800,color:vc,letterSpacing:"-0.3px"}}>{result.dec.verdict}</div>
+              </div>
+              <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                <div style={{textAlign:"center",padding:"7px 14px",background:C.input,borderRadius:10,border:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:9,color:C.muted,fontWeight:600}}>SELIC {result.dias}d</div>
+                  <div style={{fontSize:15,fontWeight:700,color:C.muted,fontFamily:"var(--font-mono)"}}>{result.dec.sp.toFixed(2)}%</div>
+                </div>
+                <div style={{textAlign:"center",padding:"7px 14px",background:vc+"14",borderRadius:10,border:`1px solid ${vc}44`}}>
+                  <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RETORNO/MARGEM</div>
+                  <div style={{fontSize:15,fontWeight:700,color:vc,fontFamily:"var(--font-mono)"}}>{result.retornoSobreMargem.toFixed(2)}%</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:9,color:C.muted,fontWeight:600}}>Score</div>
+                  <div style={{fontSize:27,fontWeight:800,color:vc,fontFamily:"var(--font-mono)"}}>{result.dec.score>0?"+":""}{result.dec.score}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Risco/retorno da trava */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+              <Metric label="Crédito Líquido" value={`R$ ${result.creditoTotal.toFixed(2)}`}
+                sub={`R$ ${result.creditoLiquido.toFixed(2)}/ação`} hi={C.green}/>
+              <Metric label="Perda Máxima" value={`R$ ${result.perdaMaxima.toFixed(2)}`}
+                sub={`largura R$ ${result.largura.toFixed(2)}`} hi={C.red}/>
+              <Metric label="Retorno/Margem" value={`${result.retornoSobreMargem.toFixed(2)}%`}
+                sub={`margem R$ ${result.noc.toFixed(0)}`}
+                hi={result.retornoSobreMargem>=result.dec.sp*1.5?C.green:result.retornoSobreMargem>=result.dec.sp?C.yellow:C.red}/>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+              <Metric label="Ponto Equilíbrio" value={`R$ ${result.pontoEquilibrio.toFixed(2)}`}/>
+              <Metric label="Prob. Lucro Máx." value={`${result.probLucroMax.toFixed(0)}%`}
+                sub={result.tipoSpread==="bull_put_spread"?`ativo fechar > R$ ${result.Kv.toFixed(2)}`:`ativo fechar < R$ ${result.Kv.toFixed(2)}`}
+                hi={result.probLucroMax>=70?C.green:result.probLucroMax>=55?C.yellow:C.red}/>
+              <Metric label="Risco/Retorno" value={result.riscoRetorno!=null?`${result.riscoRetorno.toFixed(1)} : 1`:"—"}
+                sub="arrisca p/ cada R$1 de ganho"/>
+            </div>
+
+            {/* Gestão */}
+            <Card style={{marginBottom:10}}>
+              <SectionTitle>Gestão da Posição</SectionTitle>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
+                {[{l:"ALVO 75%",v:result.creditoLiquido*0.25,c:C.green,s:"feche a trava aqui"},
+                  {l:"ALVO 50%",v:result.creditoLiquido*0.5,c:C.yellow,s:"feche a trava aqui"},
+                  {l:"STOP 2×",v:result.creditoLiquido*2,c:C.red,s:"encerra prejuízo"}].map(({l,v,c,s})=>(
+                  <div key={l} style={{background:C.input,borderRadius:10,padding:12,textAlign:"center",border:`1px solid ${C.borderSoft}`}}>
+                    <div style={{fontSize:9,color:C.muted,marginBottom:3,fontWeight:600}}>{l}</div>
+                    <div style={{fontSize:16,fontWeight:700,color:c,fontFamily:"var(--font-mono)"}}>R$ {v.toFixed(2)}</div>
+                    <div style={{fontSize:10,color:C.muted}}>{s}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            {/* Sinais */}
+            <Card>
+              <SectionTitle>Análise dos Critérios</SectionTitle>
+              {result.dec.signals.map((s,i)=><Sig key={i} {...s}/>)}
+            </Card>
+          </>
         ):(
           <>
             {/* Verdict */}
@@ -687,10 +806,14 @@ function TabComparar(){
 const STATUS_OPTIONS=["Aberta","Encerrada","Exercida","Rolada"];
 const STATUS_COLORS={Aberta:C.accent,Encerrada:C.green,Exercida:C.orange,Rolada:C.accent2};
 
+function isSpreadTipo(tipo){return tipo==="bull_put_spread"||tipo==="bear_call_spread";}
+const TIPO_LABELS={call:"Call",put:"Put",bull_put_spread:"Bull Put",bear_call_spread:"Bear Call"};
+const TIPO_COLORS={call:C.accent,put:C.accent2,bull_put_spread:C.green,bear_call_spread:C.orange};
+
 function hojeISO(){return new Date().toISOString().split("T")[0];}
 
 function blankForm(){
-  return{ativo:"",tipo:"call",codigoOpcao:"",strike:"",premio:"",qtd:"100",
+  return{ativo:"",tipo:"call",codigoOpcao:"",strike:"",premio:"",strikeProtecao:"",premioProtecao:"",qtd:"100",
     dataVenc:getNextExpiry(),precoEntrada:"",dataLancamento:hojeISO(),
     corretagem:"",observacoes:""};
 }
@@ -705,17 +828,38 @@ function diasEntre(inicio,fim){
 function calcPosicao(p){
   const dias=diasUteisAte(p.dataVenc);
   const alerta=dias<=5&&p.status==="Aberta";
+  const corretagem=parseFloat(p.corretagem)||0;
+  const diasOperacao=diasEntre(p.dataLancamento,p.status!=="Aberta"?p.dataEncerramento:null);
+
+  if(isSpreadTipo(p.tipo)){
+    const strikeVendido=p.strike;
+    const strikeProtecao=parseFloat(p.strikeProtecao)||0;
+    const premioProtecao=parseFloat(p.premioProtecao)||0;
+    const recompra=(p.recompra===""||p.recompra==null)?0:parseFloat(p.recompra);
+    const creditoLiquido=p.premio-premioProtecao;
+    const largura=Math.abs(strikeVendido-strikeProtecao);
+    const noc=largura*p.qtd;
+    const resultadoOpcao=(p.premio-premioProtecao-recompra)*p.qtd-corretagem;
+    const resultado=resultadoOpcao;
+    const perdaMaxima=(largura-creditoLiquido)*p.qtd;
+    const retornoSobreMargem=noc?(creditoLiquido*p.qtd/noc)*100:0;
+    const retornoRealizado=noc?(resultado/noc)*100:0;
+    const pontoEquilibrio=p.tipo==="bull_put_spread"?strikeVendido-creditoLiquido:strikeVendido+creditoLiquido;
+    return{
+      dias,alerta,noc,resultado,resultadoOpcao,lucroAtivo:0,retorno:retornoRealizado,diasOperacao,
+      isSpread:true,strikeVendido,strikeProtecao,creditoLiquido,perdaMaxima,retornoSobreMargem,pontoEquilibrio
+    };
+  }
+
   const noc=p.tipo==="call"?p.precoEntrada*p.qtd:p.strike*p.qtd;
   const recompra=(p.recompra===""||p.recompra==null)?0:parseFloat(p.recompra);
-  const corretagem=parseFloat(p.corretagem)||0;
   const precoSaida=(p.precoSaida===""||p.precoSaida==null)?null:parseFloat(p.precoSaida);
   // Lucro/prejuízo na venda antecipada do ativo (call: base = preço de entrada; put: base = strike, preço de exercício)
   const lucroAtivo=precoSaida!=null?(p.tipo==="call"?(precoSaida-p.precoEntrada):(precoSaida-p.strike))*p.qtd:0;
   const resultadoOpcao=(p.premio-recompra)*p.qtd-corretagem;
   const resultado=resultadoOpcao+lucroAtivo;
   const retorno=noc?(resultado/noc)*100:0;
-  const diasOperacao=diasEntre(p.dataLancamento,p.status!=="Aberta"?p.dataEncerramento:null);
-  return{dias,alerta,noc,resultado,resultadoOpcao,lucroAtivo,retorno,diasOperacao};
+  return{dias,alerta,noc,resultado,resultadoOpcao,lucroAtivo,retorno,diasOperacao,isSpread:false};
 }
 
 const MESES_LONGO=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -773,8 +917,10 @@ function StatusSelect({value,onChange}){
 }
 
 function PosicaoCard({p,editando,editForm,onIniciarEdicao,onCancelarEdicao,onSalvarEdicao,onSetEF,onStatusChange,onRemover}){
-  const{dias,alerta,noc,resultado,lucroAtivo,retorno,diasOperacao}=calcPosicao(p);
+  const calc=calcPosicao(p);
+  const{dias,alerta,noc,resultado,retorno,diasOperacao}=calc;
   const fechada=p.status!=="Aberta";
+  const spread=calc.isSpread;
   return(
     <Card style={{border:`1px solid ${alerta?C.red+"44":C.borderSoft}`,padding:12}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
@@ -783,7 +929,7 @@ function PosicaoCard({p,editando,editForm,onIniciarEdicao,onCancelarEdicao,onSal
             <span style={{fontSize:14,fontWeight:800,color:C.text,letterSpacing:"-0.01em"}}>{p.ativo}</span>
             {p.codigoOpcao&&<span style={{fontSize:10.5,fontWeight:600,color:C.muted,fontFamily:"var(--font-mono)"}}>/ {p.codigoOpcao}</span>}
           </div>
-          <Badge color={p.tipo==="call"?C.accent:C.accent2}>{p.tipo==="call"?"Call":"Put"}</Badge>
+          <Badge color={TIPO_COLORS[p.tipo]||C.accent}>{TIPO_LABELS[p.tipo]||p.tipo}</Badge>
           {editando?(
             <Badge color={STATUS_COLORS[p.status]||C.muted}>{p.status||"Aberta"}</Badge>
           ):(
@@ -798,22 +944,52 @@ function PosicaoCard({p,editando,editForm,onIniciarEdicao,onCancelarEdicao,onSal
         </div>
       </div>
 
-      <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",marginTop:8}}>
-        <div style={{fontSize:11,color:C.muted}}>Strike <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {p.strike.toFixed(2)}</span></div>
-        <div style={{fontSize:11,color:C.muted}}>Qtd. <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>{p.qtd}</span></div>
-        <div style={{fontSize:11,color:C.muted}}>Prêmio/ação <span style={{color:C.green,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {p.premio.toFixed(2)}</span></div>
-        <div style={{fontSize:11,color:C.muted}}>Nocional <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {noc.toFixed(0)}</span></div>
-        {!fechada&&(
-          <>
-            <div style={{fontSize:11,color:C.muted}}>Result. líq. <span style={{color:resultado>=0?C.green:C.red,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {resultado.toFixed(2)}</span></div>
-            <div style={{fontSize:11,color:C.muted}}>Retorno <span style={{color:retorno>=0?C.yellow:C.red,fontWeight:600,fontFamily:"var(--font-mono)"}}>{retorno.toFixed(2)}%</span></div>
-            <div style={{fontSize:11,color:C.muted,display:"flex",alignItems:"center",gap:3}}>
-              Vence <span style={{color:alerta?C.red:dias<=10?C.yellow:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>{dias}du</span>
-              {alerta&&<Icon name="alert" size={11} style={{color:C.red}}/>}
+      {spread?(
+        <>
+          <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",marginTop:8}}>
+            <div style={{fontSize:11,color:C.muted}}>Strike vendido <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {calc.strikeVendido.toFixed(2)}</span></div>
+            <div style={{fontSize:11,color:C.muted}}>Strike proteção <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {calc.strikeProtecao.toFixed(2)}</span></div>
+            <div style={{fontSize:11,color:C.muted}}>Qtd. <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>{p.qtd}</span></div>
+          </div>
+          <div style={{marginTop:8,display:"flex",alignItems:"baseline",gap:16,flexWrap:"wrap"}}>
+            <div>
+              <span style={{fontSize:9.5,color:C.muted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Crédito líq. </span>
+              <span style={{fontSize:15,fontWeight:800,color:C.green,fontFamily:"var(--font-mono)"}}>R$ {(calc.creditoLiquido*p.qtd).toFixed(2)}</span>
             </div>
-          </>
-        )}
-      </div>
+            <div>
+              <span style={{fontSize:9.5,color:C.muted,textTransform:"uppercase",letterSpacing:"0.5px"}}>Perda máxima </span>
+              <span style={{fontSize:15,fontWeight:800,color:C.red,fontFamily:"var(--font-mono)"}}>R$ {calc.perdaMaxima.toFixed(2)}</span>
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",marginTop:8}}>
+            <div style={{fontSize:11,color:C.muted}}>Retorno/margem <span style={{color:calc.retornoSobreMargem>=0?C.yellow:C.red,fontWeight:600,fontFamily:"var(--font-mono)"}}>{calc.retornoSobreMargem.toFixed(2)}%</span></div>
+            <div style={{fontSize:11,color:C.muted}}>Pto. equilíbrio <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {calc.pontoEquilibrio.toFixed(2)}</span></div>
+            {!fechada&&(
+              <div style={{fontSize:11,color:C.muted,display:"flex",alignItems:"center",gap:3}}>
+                Vence <span style={{color:alerta?C.red:dias<=10?C.yellow:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>{dias}du</span>
+                {alerta&&<Icon name="alert" size={11} style={{color:C.red}}/>}
+              </div>
+            )}
+          </div>
+        </>
+      ):(
+        <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",marginTop:8}}>
+          <div style={{fontSize:11,color:C.muted}}>Strike <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {p.strike.toFixed(2)}</span></div>
+          <div style={{fontSize:11,color:C.muted}}>Qtd. <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>{p.qtd}</span></div>
+          <div style={{fontSize:11,color:C.muted}}>Prêmio/ação <span style={{color:C.green,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {p.premio.toFixed(2)}</span></div>
+          <div style={{fontSize:11,color:C.muted}}>Nocional <span style={{color:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {noc.toFixed(0)}</span></div>
+          {!fechada&&(
+            <>
+              <div style={{fontSize:11,color:C.muted}}>Result. líq. <span style={{color:resultado>=0?C.green:C.red,fontWeight:600,fontFamily:"var(--font-mono)"}}>R$ {resultado.toFixed(2)}</span></div>
+              <div style={{fontSize:11,color:C.muted}}>Retorno <span style={{color:retorno>=0?C.yellow:C.red,fontWeight:600,fontFamily:"var(--font-mono)"}}>{retorno.toFixed(2)}%</span></div>
+              <div style={{fontSize:11,color:C.muted,display:"flex",alignItems:"center",gap:3}}>
+                Vence <span style={{color:alerta?C.red:dias<=10?C.yellow:C.text,fontWeight:600,fontFamily:"var(--font-mono)"}}>{dias}du</span>
+                {alerta&&<Icon name="alert" size={11} style={{color:C.red}}/>}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {fechada&&(
         <div style={{marginTop:8,display:"flex",alignItems:"baseline",gap:8,flexWrap:"wrap"}}>
@@ -846,19 +1022,27 @@ function PosicaoCard({p,editando,editForm,onIniciarEdicao,onCancelarEdicao,onSal
               </select>
             </Fld>
             <Fld label="Código da opção"><input className="op-input" value={editForm.codigoOpcao} onChange={e=>onSetEF("codigoOpcao",e.target.value.toUpperCase())} style={iS()}/></Fld>
-            <Fld label="Strike"><input className="op-input" type="number" value={editForm.strike} onChange={e=>onSetEF("strike",e.target.value)} style={iS()}/></Fld>
-            <Fld label="Prêmio/ação"><input className="op-input" type="number" value={editForm.premio} onChange={e=>onSetEF("premio",e.target.value)} style={iS()}/></Fld>
+            <Fld label={spread?"Strike vendido":"Strike"}><input className="op-input" type="number" value={editForm.strike} onChange={e=>onSetEF("strike",e.target.value)} style={iS()}/></Fld>
+            <Fld label={spread?"Prêmio recebido/ação":"Prêmio/ação"}><input className="op-input" type="number" value={editForm.premio} onChange={e=>onSetEF("premio",e.target.value)} style={iS()}/></Fld>
+            {spread&&(
+              <>
+                <Fld label="Strike proteção"><input className="op-input" type="number" value={editForm.strikeProtecao} onChange={e=>onSetEF("strikeProtecao",e.target.value)} style={iS()}/></Fld>
+                <Fld label="Prêmio proteção pago/ação"><input className="op-input" type="number" value={editForm.premioProtecao} onChange={e=>onSetEF("premioProtecao",e.target.value)} style={iS()}/></Fld>
+              </>
+            )}
             <Fld label="Quantidade"><input className="op-input" type="number" value={editForm.qtd} onChange={e=>onSetEF("qtd",e.target.value)} style={iS()}/></Fld>
             <Fld label="Preço do ativo na entrada"><input className="op-input" type="number" value={editForm.precoEntrada} onChange={e=>onSetEF("precoEntrada",e.target.value)} style={iS()}/></Fld>
             <Fld label="Vencimento"><input className="op-input" type="date" value={editForm.dataVenc} onChange={e=>onSetEF("dataVenc",e.target.value)} style={iS()}/></Fld>
             <Fld label="Data de lançamento"><input className="op-input" type="date" value={editForm.dataLancamento} onChange={e=>onSetEF("dataLancamento",e.target.value)} style={iS()}/></Fld>
             <Fld label="Data de encerramento"><input className="op-input" type="date" value={editForm.dataEncerramento} onChange={e=>onSetEF("dataEncerramento",e.target.value)} style={iS()}/></Fld>
-            <Fld label="Recompra da opção (R$)" hint="Vazio = expirou pó">
+            <Fld label={spread?"Recompra líquida p/ fechar (R$)":"Recompra da opção (R$)"} hint="Vazio = expirou pó">
               <input className="op-input" type="number" value={editForm.recompra} onChange={e=>onSetEF("recompra",e.target.value)} placeholder="vazio = pó" style={iS()}/>
             </Fld>
-            <Fld label="Preço de saída do ativo (R$)" hint="Só se vendeu a ação antes do vencimento">
-              <input className="op-input" type="number" value={editForm.precoSaida} onChange={e=>onSetEF("precoSaida",e.target.value)} placeholder="saída antecipada" style={iS()}/>
-            </Fld>
+            {!spread&&(
+              <Fld label="Preço de saída do ativo (R$)" hint="Só se vendeu a ação antes do vencimento">
+                <input className="op-input" type="number" value={editForm.precoSaida} onChange={e=>onSetEF("precoSaida",e.target.value)} placeholder="saída antecipada" style={iS()}/>
+              </Fld>
+            )}
             <Fld label="Corretagem (R$)"><input className="op-input" type="number" value={editForm.corretagem} onChange={e=>onSetEF("corretagem",e.target.value)} style={iS()}/></Fld>
             <div style={{gridColumn:"span 2"}}>
               <Fld label="Observações"><input className="op-input" value={editForm.observacoes} onChange={e=>onSetEF("observacoes",e.target.value)} style={iS()}/></Fld>
@@ -897,11 +1081,19 @@ function TabPosicoes(){
   const setF=(k,v)=>setForm(f=>({...f,[k]:v}));
 
   const adicionar=async()=>{
-    if(!form.ativo||!form.strike||!form.premio||!form.precoEntrada){alert("Preencha ativo, strike, prêmio e preço de entrada.");return;}
+    const souSpread=isSpreadTipo(form.tipo);
+    if(!form.ativo||!form.strike||!form.premio||!form.precoEntrada||(souSpread&&(!form.strikeProtecao||!form.premioProtecao))){
+      alert(souSpread
+        ?"Preencha ativo, strike vendido, prêmio recebido, strike proteção, prêmio proteção e preço de entrada."
+        :"Preencha ativo, strike, prêmio e preço de entrada.");
+      return;
+    }
     const nova={
       ativo:form.ativo.toUpperCase(),tipo:form.tipo,
       codigoOpcao:form.codigoOpcao.toUpperCase(),
       strike:parseFloat(form.strike),premio:parseFloat(form.premio),
+      strikeProtecao:souSpread?parseFloat(form.strikeProtecao):null,
+      premioProtecao:souSpread?parseFloat(form.premioProtecao):null,
       qtd:parseInt(form.qtd)||0,dataVenc:form.dataVenc,
       precoEntrada:parseFloat(form.precoEntrada),
       dataLancamento:form.dataLancamento||hojeISO(),
@@ -949,6 +1141,8 @@ function TabPosicoes(){
     setEditandoId(p.id);
     setEditForm({
       codigoOpcao:p.codigoOpcao||"",strike:String(p.strike),premio:String(p.premio),
+      strikeProtecao:p.strikeProtecao!==""&&p.strikeProtecao!=null?String(p.strikeProtecao):"",
+      premioProtecao:p.premioProtecao!==""&&p.premioProtecao!=null?String(p.premioProtecao):"",
       qtd:String(p.qtd),dataVenc:p.dataVenc,precoEntrada:String(p.precoEntrada),
       dataLancamento:p.dataLancamento||"",dataEncerramento:p.dataEncerramento||"",
       recompra:p.recompra!==""&&p.recompra!=null?String(p.recompra):"",
@@ -971,6 +1165,8 @@ function TabPosicoes(){
       codigoOpcao:editForm.codigoOpcao.toUpperCase(),
       strike:parseFloat(editForm.strike)||alvo.strike,
       premio:parseFloat(editForm.premio)||alvo.premio,
+      strikeProtecao:editForm.strikeProtecao===""?"":parseFloat(editForm.strikeProtecao),
+      premioProtecao:editForm.premioProtecao===""?"":parseFloat(editForm.premioProtecao),
       qtd:parseInt(editForm.qtd)||alvo.qtd,
       dataVenc:editForm.dataVenc,
       precoEntrada:parseFloat(editForm.precoEntrada)||alvo.precoEntrada,
@@ -1010,12 +1206,25 @@ function TabPosicoes(){
   };
   const expCall=exposicao("call");
   const expPut=exposicao("put");
-  const expTotal={
-    abertas:expCall.abertas+expPut.abertas,
-    nocionalAberto:expCall.nocionalAberto+expPut.nocionalAberto,
-    encerradas:expCall.encerradas+expPut.encerradas,
-    resultadoEncerradas:expCall.resultadoEncerradas+expPut.resultadoEncerradas
+
+  const spreadsList=posicoes.filter(p=>isSpreadTipo(p.tipo));
+  const spreadsAbertas=spreadsList.filter(p=>p.status==="Aberta");
+  const spreadsEncerradas=spreadsList.filter(p=>p.status!=="Aberta");
+  const expSpreads={
+    abertas:spreadsAbertas.length,
+    nocionalAberto:spreadsAbertas.reduce((a,p)=>a+calcPosicao(p).noc,0),
+    perdaMaximaAberta:spreadsAbertas.reduce((a,p)=>a+calcPosicao(p).perdaMaxima,0),
+    encerradas:spreadsEncerradas.length,
+    resultadoEncerradas:spreadsEncerradas.reduce((a,p)=>a+calcPosicao(p).resultado,0)
   };
+
+  const expTotal={
+    abertas:expCall.abertas+expPut.abertas+expSpreads.abertas,
+    nocionalAberto:expCall.nocionalAberto+expPut.nocionalAberto+expSpreads.nocionalAberto,
+    encerradas:expCall.encerradas+expPut.encerradas+expSpreads.encerradas,
+    resultadoEncerradas:expCall.resultadoEncerradas+expPut.resultadoEncerradas+expSpreads.resultadoEncerradas
+  };
+  const formSpread=isSpreadTipo(form.tipo);
 
   return(
     <div>
@@ -1042,11 +1251,19 @@ function TabPosicoes(){
               <select className="op-select" value={form.tipo} onChange={e=>setF("tipo",e.target.value)} style={iS()}>
                 <option value="call">Call Coberta</option>
                 <option value="put">Put Vendida</option>
+                <option value="bull_put_spread">Bull Put Spread</option>
+                <option value="bear_call_spread">Bear Call Spread</option>
               </select>
             </Fld>
             <Fld label="Código da opção"><input className="op-input" value={form.codigoOpcao} onChange={e=>setF("codigoOpcao",e.target.value.toUpperCase())} placeholder="PETRH452" style={iS()}/></Fld>
-            <Fld label="Strike"><input className="op-input" type="number" value={form.strike} onChange={e=>setF("strike",e.target.value)} placeholder="45.05" style={iS()}/></Fld>
+            <Fld label={formSpread?"Strike vendido":"Strike"}><input className="op-input" type="number" value={form.strike} onChange={e=>setF("strike",e.target.value)} placeholder="45.05" style={iS()}/></Fld>
             <Fld label="Prêmio recebido/ação"><input className="op-input" type="number" value={form.premio} onChange={e=>setF("premio",e.target.value)} placeholder="1.44" style={iS()}/></Fld>
+            {formSpread&&(
+              <>
+                <Fld label="Strike proteção (R$)"><input className="op-input" type="number" value={form.strikeProtecao} onChange={e=>setF("strikeProtecao",e.target.value)} placeholder="42.00" style={iS()}/></Fld>
+                <Fld label="Prêmio proteção pago/ação"><input className="op-input" type="number" value={form.premioProtecao} onChange={e=>setF("premioProtecao",e.target.value)} placeholder="0.60" style={iS()}/></Fld>
+              </>
+            )}
             <Fld label="Quantidade"><input className="op-input" type="number" value={form.qtd} onChange={e=>setF("qtd",e.target.value)} placeholder="100" style={iS()}/></Fld>
             <Fld label="Vencimento"><input className="op-input" type="date" value={form.dataVenc} onChange={e=>setF("dataVenc",e.target.value)} style={iS()}/></Fld>
             <Fld label="Preço de entrada do ativo"><input className="op-input" type="number" value={form.precoEntrada} onChange={e=>setF("precoEntrada",e.target.value)} placeholder="41.81" style={iS()}/></Fld>
@@ -1101,29 +1318,42 @@ function TabPosicoes(){
       {posicoes.length>0&&(
         <Card>
           <SectionTitle>Exposição Consolidada</SectionTitle>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-            {[{titulo:"Call Coberta",cor:C.accent,d:expCall},
-              {titulo:"Put Vendida",cor:C.accent2,d:expPut},
-              {titulo:"Consolidado",cor:C.text,d:expTotal}].map(({titulo,cor,d})=>(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10}}>
+            {[
+              {titulo:"Call Coberta",cor:C.accent,campos:[
+                {l:"OPERAÇÕES ABERTAS",v:expCall.abertas},
+                {l:"NOCIONAL ABERTO",v:`R$ ${expCall.nocionalAberto.toFixed(0)}`},
+                {l:"ENCERRADAS",v:expCall.encerradas},
+                {l:"RESULTADO ENCERRADAS",v:`R$ ${expCall.resultadoEncerradas.toFixed(2)}`,cor:expCall.resultadoEncerradas>=0?C.green:C.red},
+              ]},
+              {titulo:"Put Vendida",cor:C.accent2,campos:[
+                {l:"OPERAÇÕES ABERTAS",v:expPut.abertas},
+                {l:"NOCIONAL ABERTO",v:`R$ ${expPut.nocionalAberto.toFixed(0)}`},
+                {l:"ENCERRADAS",v:expPut.encerradas},
+                {l:"RESULTADO ENCERRADAS",v:`R$ ${expPut.resultadoEncerradas.toFixed(2)}`,cor:expPut.resultadoEncerradas>=0?C.green:C.red},
+              ]},
+              {titulo:"Spreads",cor:C.green,campos:[
+                {l:"OPERAÇÕES ABERTAS",v:expSpreads.abertas},
+                {l:"NOCIONAL TOTAL",v:`R$ ${expSpreads.nocionalAberto.toFixed(0)}`},
+                {l:"PERDA MÁXIMA EXPOSTA",v:`R$ ${expSpreads.perdaMaximaAberta.toFixed(2)}`,cor:C.red},
+                {l:"RESULTADO ENCERRADAS",v:`R$ ${expSpreads.resultadoEncerradas.toFixed(2)}`,cor:expSpreads.resultadoEncerradas>=0?C.green:C.red},
+              ]},
+              {titulo:"Consolidado",cor:C.text,campos:[
+                {l:"OPERAÇÕES ABERTAS",v:expTotal.abertas},
+                {l:"NOCIONAL ABERTO",v:`R$ ${expTotal.nocionalAberto.toFixed(0)}`},
+                {l:"ENCERRADAS",v:expTotal.encerradas},
+                {l:"RESULTADO ENCERRADAS",v:`R$ ${expTotal.resultadoEncerradas.toFixed(2)}`,cor:expTotal.resultadoEncerradas>=0?C.green:C.red},
+              ]},
+            ].map(({titulo,cor,campos})=>(
               <div key={titulo} style={{background:C.input,borderRadius:10,padding:14,border:`1px solid ${C.borderSoft}`}}>
                 <div style={{fontSize:12,fontWeight:700,color:cor,marginBottom:10}}>{titulo}</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                  <div>
-                    <div style={{fontSize:9,color:C.muted,fontWeight:600}}>OPERAÇÕES ABERTAS</div>
-                    <div style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"var(--font-mono)"}}>{d.abertas}</div>
-                  </div>
-                  <div>
-                    <div style={{fontSize:9,color:C.muted,fontWeight:600}}>NOCIONAL ABERTO</div>
-                    <div style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"var(--font-mono)"}}>R$ {d.nocionalAberto.toFixed(0)}</div>
-                  </div>
-                  <div>
-                    <div style={{fontSize:9,color:C.muted,fontWeight:600}}>ENCERRADAS</div>
-                    <div style={{fontSize:16,fontWeight:700,color:C.text,fontFamily:"var(--font-mono)"}}>{d.encerradas}</div>
-                  </div>
-                  <div>
-                    <div style={{fontSize:9,color:C.muted,fontWeight:600}}>RESULTADO ENCERRADAS</div>
-                    <div style={{fontSize:16,fontWeight:700,color:d.resultadoEncerradas>=0?C.green:C.red,fontFamily:"var(--font-mono)"}}>R$ {d.resultadoEncerradas.toFixed(2)}</div>
-                  </div>
+                  {campos.map(c=>(
+                    <div key={c.l}>
+                      <div style={{fontSize:9,color:C.muted,fontWeight:600}}>{c.l}</div>
+                      <div style={{fontSize:16,fontWeight:700,color:c.cor||C.text,fontFamily:"var(--font-mono)"}}>{c.v}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
